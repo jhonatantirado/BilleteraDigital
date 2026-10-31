@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CAPA DE APLICACIÓN: casos de uso. Solo conoce al Dominio. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BilleteraDigital.Domain\BilleteraDigital.Domain.csproj" />
+  </ItemGroup>
+</Project>

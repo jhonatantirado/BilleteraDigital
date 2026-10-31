@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- CAPA DE INFRAESTRUCTURA: implementa los contratos (interfaces) definidos en Dominio/Aplicación. -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BilleteraDigital.Domain\BilleteraDigital.Domain.csproj" />
+    <ProjectReference Include="..\BilleteraDigital.Application\BilleteraDigital.Application.csproj" />
+  </ItemGroup>
+</Project>

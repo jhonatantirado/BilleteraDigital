@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- CAPA DE PRESENTACIÓN (MVC): Controllers + Models (DTO) + View (respuesta JSON). -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Swashbuckle.AspNetCore" Version="6.6.2" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\BilleteraDigital.Application\BilleteraDigital.Application.csproj" />
+    <ProjectReference Include="..\BilleteraDigital.Infrastructure\BilleteraDigital.Infrastructure.csproj" />
+  </ItemGroup>
+</Project>

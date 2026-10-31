@@ -1,0 +1,11 @@
+# .NET
+bin/
+obj/
+*.user
+.vs/
+logs/
+# Flutter
+frontend/billetera_app/.dart_tool/
+frontend/billetera_app/build/
+frontend/billetera_app/.flutter-plugins*
+frontend/billetera_app/pubspec.lock

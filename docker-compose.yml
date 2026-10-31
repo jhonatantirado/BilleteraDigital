@@ -1,0 +1,18 @@
+# Levanta PostgreSQL 16 y ejecuta los scripts de /database la primera vez.
+#   docker compose up -d
+services:
+  postgres:
+    image: postgres:16
+    container_name: billetera_postgres
+    environment:
+      POSTGRES_DB: billetera_digital
+      POSTGRES_USER: billetera
+      POSTGRES_PASSWORD: billetera123
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./database:/docker-entrypoint-initdb.d:ro
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:
