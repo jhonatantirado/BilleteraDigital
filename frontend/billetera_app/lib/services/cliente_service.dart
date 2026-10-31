@@ -22,12 +22,20 @@ class ClienteService {
       'telefono': telefono,
       'password': password,
     });
-    return Cliente.fromJson(json as Map<String, dynamic>);
+    return _iniciarSesion(json);
   }
 
   Future<Cliente> login(String email, String password) async {
     final json = await _api
         .post('/clientes/login', {'email': email, 'password': password});
-    return Cliente.fromJson(json as Map<String, dynamic>);
+    return _iniciarSesion(json);
+  }
+
+  /// La API responde { token, expira, cliente }: se guarda el token en el
+  /// ApiClient (Singleton) para que todas las peticiones siguientes lo envíen.
+  Cliente _iniciarSesion(dynamic json) {
+    final mapa = json as Map<String, dynamic>;
+    _api.establecerToken(mapa['token'] as String);
+    return Cliente.fromJson(mapa['cliente'] as Map<String, dynamic>);
   }
 }

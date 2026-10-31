@@ -13,6 +13,9 @@ public record RegistrarClienteRequest(
 
 public record LoginRequest(string Email, string Password);
 
+/// <summary>Respuesta de login/registro: token JWT + datos del cliente.</summary>
+public record AuthResponse(string Token, DateTime Expira, ClienteResponse Cliente);
+
 public record ClienteResponse(
     Guid Id,
     string Nombres,

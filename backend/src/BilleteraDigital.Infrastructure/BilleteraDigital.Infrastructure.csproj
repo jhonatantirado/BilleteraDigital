@@ -8,6 +8,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="8.0.10" />
+    <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="7.1.2" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\BilleteraDigital.Domain\BilleteraDigital.Domain.csproj" />

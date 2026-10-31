@@ -34,6 +34,7 @@ public class ManejoErroresMiddleware
                 NoEncontradoException => (HttpStatusCode.NotFound, "Recurso no encontrado"),
                 ConflictoException => (HttpStatusCode.Conflict, "Conflicto"),
                 CredencialesInvalidasException => (HttpStatusCode.Unauthorized, "No autorizado"),
+                AccesoDenegadoException => (HttpStatusCode.Forbidden, "Acceso denegado"),
                 ReglaDeNegocioException => (HttpStatusCode.UnprocessableEntity, "Regla de negocio"),
                 ArgumentException => (HttpStatusCode.BadRequest, "Solicitud inválida"),
                 _ => (HttpStatusCode.InternalServerError, "Error interno")

@@ -1,5 +1,7 @@
+using BilleteraDigital.Api.Configuracion;
 using BilleteraDigital.Application.DTOs;
 using BilleteraDigital.Application.Interfaces;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace BilleteraDigital.Api.Controllers;
@@ -17,28 +19,34 @@ public class ClientesController : ControllerBase
     private readonly IClienteService _servicio;
     public ClientesController(IClienteService servicio) => _servicio = servicio;
 
-    /// <summary>Registra un cliente y le abre una billetera en soles.</summary>
+    /// <summary>Registra un cliente, le abre una billetera en soles y devuelve su token.</summary>
+    [AllowAnonymous]
     [HttpPost]
-    [ProducesResponseType(typeof(ClienteResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status409Conflict)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
-    public async Task<ActionResult<ClienteResponse>> Registrar([FromBody] RegistrarClienteRequest request)
+    public async Task<ActionResult<AuthResponse>> Registrar([FromBody] RegistrarClienteRequest request)
     {
-        var cliente = await _servicio.RegistrarAsync(request);
-        return CreatedAtAction(nameof(ObtenerPorId), new { id = cliente.Id }, cliente);
+        var resultado = await _servicio.RegistrarAsync(request);
+        return CreatedAtAction(nameof(ObtenerPorId), new { id = resultado.Cliente.Id }, resultado);
     }
 
-    /// <summary>Inicia sesión con email y contraseña.</summary>
+    /// <summary>Inicia sesión con email y contraseña; devuelve un token JWT.</summary>
+    [AllowAnonymous]
     [HttpPost("login")]
-    [ProducesResponseType(typeof(ClienteResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(AuthResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
-    public async Task<ActionResult<ClienteResponse>> Login([FromBody] LoginRequest request) =>
+    public async Task<ActionResult<AuthResponse>> Login([FromBody] LoginRequest request) =>
         Ok(await _servicio.LoginAsync(request));
 
-    /// <summary>Obtiene un cliente con su billetera.</summary>
+    /// <summary>Obtiene el cliente autenticado con su billetera.</summary>
     [HttpGet("{id:guid}")]
     [ProducesResponseType(typeof(ClienteResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
-    public async Task<ActionResult<ClienteResponse>> ObtenerPorId(Guid id) =>
-        Ok(await _servicio.ObtenerPorIdAsync(id));
+    public async Task<ActionResult<ClienteResponse>> ObtenerPorId(Guid id)
+    {
+        User.ExigirCliente(id);
+        return Ok(await _servicio.ObtenerPorIdAsync(id));
+    }
 }

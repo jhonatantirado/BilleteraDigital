@@ -38,15 +38,31 @@ class ApiClient {
     'Accept': 'application/json',
   };
 
+  /// Token JWT de la sesión actual (solo en memoria).
+  String? _token;
+
+  /// Se invoca cuando el servidor rechaza el token (vencido o inválido).
+  void Function()? alNoAutorizado;
+
+  bool get tieneToken => _token != null;
+
+  void establecerToken(String? token) => _token = token;
+
+  /// Cabeceras comunes + "Authorization: Bearer <token>" si hay sesión.
+  Map<String, String> get _cabecerasActuales => {
+        ..._cabeceras,
+        if (_token != null) 'Authorization': 'Bearer $_token',
+      };
+
   Future<dynamic> get(String ruta, {Map<String, String>? query}) {
     final uri = Uri.parse('$_baseUrl$ruta').replace(queryParameters: query);
-    return _ejecutar(() => _http.get(uri, headers: _cabeceras));
+    return _ejecutar(() => _http.get(uri, headers: _cabecerasActuales));
   }
 
   Future<dynamic> post(String ruta, Map<String, dynamic> cuerpo) {
     final uri = Uri.parse('$_baseUrl$ruta');
     return _ejecutar(
-        () => _http.post(uri, headers: _cabeceras, body: jsonEncode(cuerpo)));
+        () => _http.post(uri, headers: _cabecerasActuales, body: jsonEncode(cuerpo)));
   }
 
   /// Centraliza timeout, decodificación JSON y traducción de errores HTTP.
@@ -66,6 +82,14 @@ class ApiClient {
 
     if (respuesta.statusCode >= 200 && respuesta.statusCode < 300) {
       return json;
+    }
+
+    // Token vencido o inválido: se cierra la sesión y se vuelve al login
+    if (respuesta.statusCode == 401 && _token != null) {
+      _token = null;
+      alNoAutorizado?.call();
+      throw const ApiException(
+          401, 'Tu sesión expiró. Vuelve a iniciar sesión.');
     }
 
     // La API devuelve errores con formato ProblemDetails: { title, status, detail }

@@ -17,3 +17,9 @@ public class CredencialesInvalidasException : Exception
 {
     public CredencialesInvalidasException() : base("Email o contraseña incorrectos.") { }
 }
+
+/// <summary>El usuario autenticado intenta acceder a un recurso ajeno → HTTP 403.</summary>
+public class AccesoDenegadoException : Exception
+{
+    public AccesoDenegadoException(string mensaje = "No tienes acceso a este recurso.") : base(mensaje) { }
+}

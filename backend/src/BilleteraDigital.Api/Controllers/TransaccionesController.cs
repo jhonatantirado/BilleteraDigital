@@ -1,3 +1,4 @@
+using BilleteraDigital.Api.Configuracion;
 using BilleteraDigital.Application.DTOs;
 using BilleteraDigital.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +18,8 @@ public class TransaccionesController : ControllerBase
     [ProducesResponseType(typeof(TransaccionResponse), StatusCodes.Status201Created)]
     public async Task<ActionResult<TransaccionResponse>> Recargar([FromBody] RecargaRequest request)
     {
-        var resultado = await _servicio.RecargarAsync(request);
+        // La billetera a recargar sale del token, no del body
+        var resultado = await _servicio.RecargarAsync(request with { BilleteraId = User.BilleteraId() });
         return StatusCode(StatusCodes.Status201Created, resultado);
     }
 
@@ -28,7 +30,8 @@ public class TransaccionesController : ControllerBase
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<TransferenciaResponse>> Transferir([FromBody] TransferenciaRequest request)
     {
-        var resultado = await _servicio.TransferirAsync(request);
+        // El origen SIEMPRE es la billetera del usuario autenticado
+        var resultado = await _servicio.TransferirAsync(request with { BilleteraOrigenId = User.BilleteraId() });
         return StatusCode(StatusCodes.Status201Created, resultado);
     }
 

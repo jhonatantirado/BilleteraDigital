@@ -28,6 +28,7 @@ public static class DependencyInjection
         services.AddScoped<IUnitOfWork, UnidadDeTrabajo>();
 
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
+        services.AddSingleton<IGeneradorToken, JwtGeneradorToken>();
 
         // Observadores concretos (se suscriben al Subject al iniciar la API)
         services.AddSingleton<ITransaccionObserver, AuditoriaArchivoObserver>();

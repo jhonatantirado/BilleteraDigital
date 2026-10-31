@@ -18,17 +18,19 @@ public class ClienteService : IClienteService
     private readonly IBilleteraRepository _billeteras;
     private readonly IUnitOfWork _unidadDeTrabajo;
     private readonly IPasswordHasher _hasher;
+    private readonly IGeneradorToken _tokens;
 
     public ClienteService(IClienteRepository clientes, IBilleteraRepository billeteras,
-                          IUnitOfWork unidadDeTrabajo, IPasswordHasher hasher)
+                          IUnitOfWork unidadDeTrabajo, IPasswordHasher hasher, IGeneradorToken tokens)
     {
+        _tokens = tokens;
         _clientes = clientes;
         _billeteras = billeteras;
         _unidadDeTrabajo = unidadDeTrabajo;
         _hasher = hasher;
     }
 
-    public async Task<ClienteResponse> RegistrarAsync(RegistrarClienteRequest r)
+    public async Task<AuthResponse> RegistrarAsync(RegistrarClienteRequest r)
     {
         if (string.IsNullOrWhiteSpace(r.Password) || r.Password.Length < 8)
             throw new Domain.Excepciones.ReglaDeNegocioException("La contraseña debe tener al menos 8 caracteres.");
@@ -61,10 +63,10 @@ public class ClienteService : IClienteService
             throw;
         }
 
-        return Mapeador.AClienteResponse(cliente, billetera);
+        return ConToken(Mapeador.AClienteResponse(cliente, billetera));
     }
 
-    public async Task<ClienteResponse> LoginAsync(LoginRequest r)
+    public async Task<AuthResponse> LoginAsync(LoginRequest r)
     {
         var cliente = await _clientes.ObtenerPorEmailAsync(r.Email?.Trim().ToLowerInvariant() ?? "");
         if (cliente is null || !_hasher.Verificar(r.Password ?? "", cliente.PasswordHash))
@@ -72,7 +74,7 @@ public class ClienteService : IClienteService
 
         var billetera = await _billeteras.ObtenerPorClienteIdAsync(cliente.Id)
                         ?? throw new NoEncontradoException("El cliente no tiene billetera.");
-        return Mapeador.AClienteResponse(cliente, billetera);
+        return ConToken(Mapeador.AClienteResponse(cliente, billetera));
     }
 
     public async Task<ClienteResponse> ObtenerPorIdAsync(Guid id)
@@ -82,6 +84,13 @@ public class ClienteService : IClienteService
         var billetera = await _billeteras.ObtenerPorClienteIdAsync(cliente.Id)
                         ?? throw new NoEncontradoException("El cliente no tiene billetera.");
         return Mapeador.AClienteResponse(cliente, billetera);
+    }
+
+    /// <summary>Emite el JWT del cliente (incluye su billetera como claim).</summary>
+    private AuthResponse ConToken(ClienteResponse c)
+    {
+        var (token, expira) = _tokens.Generar(c.Id, c.Billetera.Id, c.Email);
+        return new AuthResponse(token, expira, c);
     }
 
     private async Task<string> GenerarNumeroCuentaUnicoAsync()

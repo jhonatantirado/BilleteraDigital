@@ -5,8 +5,8 @@ namespace BilleteraDigital.Application.Interfaces;
 
 public interface IClienteService
 {
-    Task<ClienteResponse> RegistrarAsync(RegistrarClienteRequest request);
-    Task<ClienteResponse> LoginAsync(LoginRequest request);
+    Task<AuthResponse> RegistrarAsync(RegistrarClienteRequest request);
+    Task<AuthResponse> LoginAsync(LoginRequest request);
     Task<ClienteResponse> ObtenerPorIdAsync(Guid id);
 }
 

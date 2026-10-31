@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../core/api_client.dart';
 import '../core/api_exception.dart';
 import '../models/cliente.dart';
 import '../services/billetera_service.dart';
@@ -13,7 +14,10 @@ import '../services/cliente_service.dart';
 class SesionController extends ChangeNotifier {
   SesionController({ClienteService? clientes, BilleteraService? billeteras})
       : _clientes = clientes ?? ClienteService(),
-        _billeteras = billeteras ?? BilleteraService();
+        _billeteras = billeteras ?? BilleteraService() {
+    // Si el servidor rechaza el token (401), se vuelve a la pantalla de login
+    ApiClient().alNoAutorizado = cerrarSesion;
+  }
 
   final ClienteService _clientes;
   final BilleteraService _billeteras;
@@ -70,6 +74,7 @@ class SesionController extends ChangeNotifier {
   }
 
   void cerrarSesion() {
+    ApiClient().establecerToken(null);
     _cliente = null;
     _error = null;
     notifyListeners();
