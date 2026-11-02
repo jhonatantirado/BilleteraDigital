@@ -52,7 +52,7 @@ backend/src
 ├── BilleteraDigital.Infrastructure  ← detalles técnicos; implementa las interfaces
 │   ├── Persistencia/ BilleteraDbContext (EF Core), UnidadDeTrabajo
 │   ├── Repositorios/ ClienteRepository, BilleteraRepository, TransaccionRepository
-│   ├── Seguridad/    Pbkdf2PasswordHasher
+│   ├── Seguridad/    Pbkdf2PasswordHasher, JwtGeneradorToken
 │   └── Observadores/ AuditoriaArchivo, NotificacionEmail, AlertaFraude
 └── BilleteraDigital.Api             ← presentación (MVC) y raíz de composición
     ├── Controllers/  ClientesController, BilleterasController, TransaccionesController
@@ -302,10 +302,11 @@ flutter test
    *Resuelto con `ClienteAntiguoSinComisionStrategy`.*
 2. **Factory Method + Observer:** nuevo tipo `Retiro` con su creador y un
    `PuntosFidelidadObserver`.
-3. **Seguridad:** agregar autenticación JWT (`Microsoft.AspNetCore.Authentication.JwtBearer`)
-   y tomar la billetera de origen del token en lugar del cuerpo de la petición.
-   *Hoy el endpoint confía en el `billeteraOrigenId` enviado: es intencionalmente
-   simple para el curso y **no** debe usarse así en producción.*
+3. ~~**Seguridad:** agregar autenticación JWT (`Microsoft.AspNetCore.Authentication.JwtBearer`)
+   y tomar la billetera de origen del token en lugar del cuerpo de la petición.~~
+   *Resuelto: `JwtGeneradorToken` emite el token en login/registro, todos los endpoints
+   exigen autenticación (salvo registro y login) y la billetera de origen se toma
+   del claim `billetera_id` del token.*
 4. **Decorator:** envolver `IBilleteraRepository` con un `BilleteraRepositoryConCache`.
 5. **Idempotencia:** cabecera `Idempotency-Key` para evitar transferencias duplicadas
    si el usuario pulsa dos veces.
