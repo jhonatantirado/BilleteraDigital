@@ -18,7 +18,11 @@ public static class RegistroAplicacion
         services.AddScoped<IClienteService, ClienteService>();
         services.AddScoped<IBilleteraService, BilleteraService>();
 
+        // Reloj del sistema (abstracción de .NET 8): en las pruebas se reemplaza por una fecha fija
+        services.AddSingleton(TimeProvider.System);
+
         // STRATEGY: todas las estrategias + el contexto que elige entre ellas
+        services.AddSingleton<IComisionStrategy, ClienteAntiguoSinComisionStrategy>();
         services.AddSingleton<IComisionStrategy, SinComisionStrategy>();
         services.AddSingleton<IComisionStrategy, ComisionPorcentualStrategy>();
         services.AddSingleton<IComisionStrategy, TarifaPlanaStrategy>();

@@ -35,9 +35,12 @@ public class TransaccionesController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, resultado);
     }
 
-    /// <summary>Previsualiza la comisión que se cobraría (muestra el patrón Strategy en acción).</summary>
+    /// <summary>
+    /// Previsualiza la comisión que se cobraría al usuario autenticado
+    /// (depende del monto y de su antigüedad: patrón Strategy en acción).
+    /// </summary>
     [HttpGet("comision")]
     [ProducesResponseType(typeof(ComisionResponse), StatusCodes.Status200OK)]
-    public ActionResult<ComisionResponse> Comision([FromQuery] decimal monto) =>
-        Ok(_servicio.CalcularComision(monto));
+    public async Task<ActionResult<ComisionResponse>> Comision([FromQuery] decimal monto) =>
+        Ok(await _servicio.CalcularComisionAsync(User.BilleteraId(), monto));
 }

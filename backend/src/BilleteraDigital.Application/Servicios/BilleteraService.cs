@@ -32,11 +32,13 @@ public class BilleteraService : IBilleteraService
     private readonly CalculadoraComision _calculadora;
     private readonly ProveedorCreadores _creadores;
     private readonly ITransaccionSubject _subject;
+    private readonly TimeProvider _reloj;
 
     public BilleteraService(IBilleteraRepository billeteras, ITransaccionRepository transacciones,
         IClienteRepository clientes, IUnitOfWork unidadDeTrabajo, CalculadoraComision calculadora,
-        ProveedorCreadores creadores, ITransaccionSubject subject)
+        ProveedorCreadores creadores, ITransaccionSubject subject, TimeProvider reloj)
     {
+        _reloj = reloj;
         _billeteras = billeteras;
         _transacciones = transacciones;
         _clientes = clientes;
@@ -63,10 +65,11 @@ public class BilleteraService : IBilleteraService
         return new DestinatarioResponse(b.NumeroCuenta, nombre);
     }
 
-    public ComisionResponse CalcularComision(decimal monto)
+    public async Task<ComisionResponse> CalcularComisionAsync(Guid billeteraOrigenId, decimal monto)
     {
         ValidarMonto(monto, MontoMinimoTransferencia, MontoMaximoTransferencia);
-        var (comision, estrategia) = _calculadora.Calcular(monto);
+        var emisor = await ObtenerTitularAsync(billeteraOrigenId);
+        var (comision, estrategia) = _calculadora.Calcular(CrearContexto(monto, emisor));
         return new ComisionResponse(monto, comision, monto + comision, estrategia);
     }
 
@@ -120,8 +123,9 @@ public class BilleteraService : IBilleteraService
         if (destinoInfo.Id == r.BilleteraOrigenId)
             throw new ReglaDeNegocioException("No puede transferirse dinero a su propia billetera.");
 
-        // STRATEGY: la calculadora elige el algoritmo de comisión según el monto
-        var (comision, estrategia) = _calculadora.Calcular(r.Monto);
+        // STRATEGY: la calculadora elige el algoritmo según el monto y la antigüedad del emisor
+        var emisor = await ObtenerTitularAsync(r.BilleteraOrigenId);
+        var (comision, estrategia) = _calculadora.Calcular(CrearContexto(r.Monto, emisor));
         var referencia = Guid.NewGuid();
 
         Billetera origen, destino;
@@ -164,12 +168,11 @@ public class BilleteraService : IBilleteraService
             throw;
         }
 
-        var emisor = await _clientes.ObtenerPorIdAsync(origen.ClienteId);
         var receptor = await _clientes.ObtenerPorIdAsync(destino.ClienteId);
 
         // OBSERVER: auditoría, email y alerta de fraude reaccionan sin que este servicio los conozca
         await _subject.NotificarAsync(new TransaccionEvento(
-            TipoTransaccion.TransferenciaEnviada, referencia, origen.NumeroCuenta, emisor?.Email ?? "",
+            TipoTransaccion.TransferenciaEnviada, referencia, origen.NumeroCuenta, emisor.Email,
             destino.NumeroCuenta, receptor?.Email, r.Monto, comision, origen.Saldo, enviada.Fecha));
 
         return new TransferenciaResponse(referencia, r.Monto, comision, estrategia, origen.Saldo,
@@ -190,6 +193,18 @@ public class BilleteraService : IBilleteraService
         return new PaginaResponse<TransaccionResponse>(
             items.Select(Mapeador.ATransaccionResponse).ToList(), pagina, tamanoPagina, total);
     }
+
+    /// <summary>Titular (cliente) de una billetera; lectura sin bloqueo.</summary>
+    private async Task<Cliente> ObtenerTitularAsync(Guid billeteraId)
+    {
+        var billetera = await _billeteras.ObtenerPorIdAsync(billeteraId)
+                        ?? throw new NoEncontradoException("Billetera no encontrada.");
+        return await _clientes.ObtenerPorIdAsync(billetera.ClienteId)
+               ?? throw new NoEncontradoException("Titular de la billetera no encontrado.");
+    }
+
+    private ContextoComision CrearContexto(decimal monto, Cliente emisor) =>
+        new(monto, emisor.FechaRegistro, _reloj.GetUtcNow().UtcDateTime);
 
     private static void ValidarMonto(decimal monto, decimal minimo, decimal maximo)
     {

@@ -14,10 +14,18 @@ namespace BilleteraDigital.Tests;
 /// </summary>
 public class StrategyTests
 {
+    private static readonly DateTime Hoy = new(2026, 11, 2, 12, 0, 0, DateTimeKind.Utc);
+
+    // Se registran desordenadas a propósito: la calculadora las ordena por prioridad
     private readonly CalculadoraComision _calc = new(new IComisionStrategy[]
     {
-        new TarifaPlanaStrategy(), new SinComisionStrategy(), new ComisionPorcentualStrategy()
+        new TarifaPlanaStrategy(), new SinComisionStrategy(), new ComisionPorcentualStrategy(),
+        new ClienteAntiguoSinComisionStrategy()
     });
+
+    /// <summary>Contexto de un cliente registrado hace <paramref name="dias"/> días.</summary>
+    private static ContextoComision Contexto(decimal monto, int dias = 10) =>
+        new(monto, Hoy.AddDays(-dias), Hoy);
 
     [Theory]
     [InlineData(100, 0, "Sin comisión (hasta S/ 500)")]
@@ -27,9 +35,42 @@ public class StrategyTests
     [InlineData(8000, 25, "Tarifa plana S/ 25")]
     public void Selecciona_la_estrategia_correcta(decimal monto, decimal esperada, string nombre)
     {
-        var (comision, estrategia) = _calc.Calcular(monto);
+        var (comision, estrategia) = _calc.Calcular(Contexto(monto));
         Assert.Equal(esperada, comision);
         Assert.Equal(nombre, estrategia);
+    }
+
+    [Theory]
+    [InlineData(100)]
+    [InlineData(1000)]
+    [InlineData(8000)]
+    public void Cliente_con_mas_de_6_meses_no_paga_comision(decimal monto)
+    {
+        var contexto = new ContextoComision(monto, Hoy.AddMonths(-6).AddDays(-1), Hoy);
+
+        var (comision, estrategia) = _calc.Calcular(contexto);
+
+        Assert.Equal(0m, comision);
+        Assert.Equal("Cliente con más de 6 meses: sin comisión", estrategia);
+    }
+
+    [Fact]
+    public void Cliente_con_exactamente_6_meses_aun_paga_comision()
+    {
+        // "Más de 6 meses": al cumplir justo 6 meses todavía no aplica el beneficio
+        var contexto = new ContextoComision(8000m, Hoy.AddMonths(-6), Hoy);
+
+        var (comision, estrategia) = _calc.Calcular(contexto);
+
+        Assert.Equal(25m, comision);
+        Assert.Equal("Tarifa plana S/ 25", estrategia);
+    }
+
+    [Fact]
+    public void Cliente_nuevo_paga_segun_el_monto()
+    {
+        var (comision, _) = _calc.Calcular(Contexto(1000m, dias: 150));
+        Assert.Equal(5m, comision);
     }
 }
 

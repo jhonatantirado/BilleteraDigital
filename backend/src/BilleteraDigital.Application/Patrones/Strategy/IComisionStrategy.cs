@@ -3,7 +3,7 @@ namespace BilleteraDigital.Application.Patrones.Strategy;
 /// <summary>
 /// PATRÓN STRATEGY (comportamiento - GoF)
 /// Problema: la comisión de una transferencia se calcula de forma distinta
-/// según el monto (y mañana podría depender del tipo de cliente, una promoción, etc.).
+/// según el monto, la antigüedad del cliente (y mañana una promoción, etc.).
 /// Solución: encapsular cada algoritmo de cálculo en su propia clase que
 /// implementa esta interfaz. El contexto (<see cref="CalculadoraComision"/>)
 /// trabaja contra la interfaz y no sabe qué algoritmo concreto se usa.
@@ -17,9 +17,9 @@ public interface IComisionStrategy
     /// <summary>Prioridad de evaluación: menor número = se evalúa antes.</summary>
     int Prioridad { get; }
 
-    /// <summary>¿Esta estrategia es aplicable al monto dado?</summary>
-    bool Aplica(decimal monto);
+    /// <summary>¿Esta estrategia es aplicable a la operación descrita en el contexto?</summary>
+    bool Aplica(ContextoComision contexto);
 
     /// <summary>El algoritmo encapsulado.</summary>
-    decimal Calcular(decimal monto);
+    decimal Calcular(ContextoComision contexto);
 }

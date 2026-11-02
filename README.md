@@ -151,11 +151,18 @@ Puntos para discutir en clase:
 
 ### 2.2 Strategy — política de comisiones
 
-| Estrategia | Rango | Comisión |
-|---|---|---|
-| `SinComisionStrategy` | hasta S/ 500 | S/ 0 |
-| `ComisionPorcentualStrategy` | S/ 500.01 – 5,000 | 0.5 % |
-| `TarifaPlanaStrategy` | más de S/ 5,000 | S/ 25 (tope) |
+Las estrategias se evalúan por prioridad y se aplica la primera que cumple su condición.
+Reciben un `ContextoComision` (monto, fecha de registro del cliente emisor y fecha actual).
+
+| Prioridad | Estrategia | Condición | Comisión |
+|---|---|---|---|
+| 0 | `ClienteAntiguoSinComisionStrategy` | cliente con **más de 6 meses** de antigüedad (cualquier monto) | S/ 0 |
+| 1 | `SinComisionStrategy` | hasta S/ 500 | S/ 0 |
+| 2 | `ComisionPorcentualStrategy` | S/ 500.01 – 5,000 | 0.5 % |
+| 3 | `TarifaPlanaStrategy` | más de S/ 5,000 | S/ 25 (tope) |
+
+La fecha actual se obtiene de `TimeProvider` (inyectado), para que las pruebas
+puedan usar fechas fijas.
 
 `CalculadoraComision` (el **contexto**) recibe todas las estrategias por inyección
 de dependencias y delega en la que aplica. **Ejercicio:** agregar una
@@ -291,7 +298,8 @@ flutter test
 
 ## 4. Ejercicios propuestos para los estudiantes
 
-1. **Strategy:** comisión 0 para clientes con más de 6 meses de antigüedad.
+1. ~~**Strategy:** comisión 0 para clientes con más de 6 meses de antigüedad.~~
+   *Resuelto con `ClienteAntiguoSinComisionStrategy`.*
 2. **Factory Method + Observer:** nuevo tipo `Retiro` con su creador y un
    `PuntosFidelidadObserver`.
 3. **Seguridad:** agregar autenticación JWT (`Microsoft.AspNetCore.Authentication.JwtBearer`)

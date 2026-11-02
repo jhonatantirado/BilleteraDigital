@@ -16,7 +16,7 @@ public interface IBilleteraService
     Task<DestinatarioResponse> BuscarDestinatarioAsync(string numeroCuenta);
     Task<TransaccionResponse> RecargarAsync(RecargaRequest request);
     Task<TransferenciaResponse> TransferirAsync(TransferenciaRequest request);
-    ComisionResponse CalcularComision(decimal monto);
+    Task<ComisionResponse> CalcularComisionAsync(Guid billeteraOrigenId, decimal monto);
     Task<PaginaResponse<TransaccionResponse>> ObtenerHistorialAsync(
         Guid billeteraId, int pagina, int tamanoPagina, TipoTransaccion? tipo);
 }
