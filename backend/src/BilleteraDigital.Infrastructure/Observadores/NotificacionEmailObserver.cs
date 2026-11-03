@@ -17,17 +17,30 @@ public class NotificacionEmailObserver : ITransaccionObserver
 
     public Task ActualizarAsync(TransaccionEvento e)
     {
-        if (e.Tipo == TipoTransaccion.Recarga)
+        // switch explícito por tipo: un "else" genérico trataría un tipo nuevo
+        // (p. ej. Retiro) como si fuera una transferencia.
+        switch (e.Tipo)
         {
-            _log.LogInformation("[EMAIL → {Email}] Recargaste S/ {Monto:N2}. Saldo: S/ {Saldo:N2}",
-                e.EmailTitular, e.Monto, e.SaldoResultante);
-        }
-        else
-        {
-            _log.LogInformation("[EMAIL → {Email}] Enviaste S/ {Monto:N2} a la cuenta {Destino} (comisión S/ {Comision:N2})",
-                e.EmailTitular, e.Monto, e.CuentaDestino, e.Comision);
-            _log.LogInformation("[EMAIL → {Email}] Recibiste S/ {Monto:N2} de la cuenta {Origen}",
-                e.EmailDestinatario, e.Monto, e.CuentaOrigen);
+            case TipoTransaccion.Recarga:
+                _log.LogInformation("[EMAIL → {Email}] Recargaste S/ {Monto:N2}. Saldo: S/ {Saldo:N2}",
+                    e.EmailTitular, e.Monto, e.SaldoResultante);
+                break;
+
+            case TipoTransaccion.Retiro:
+                _log.LogInformation("[EMAIL → {Email}] Retiraste S/ {Monto:N2}. Saldo: S/ {Saldo:N2}",
+                    e.EmailTitular, e.Monto, e.SaldoResultante);
+                break;
+
+            case TipoTransaccion.TransferenciaEnviada:
+                _log.LogInformation("[EMAIL → {Email}] Enviaste S/ {Monto:N2} a la cuenta {Destino} (comisión S/ {Comision:N2})",
+                    e.EmailTitular, e.Monto, e.CuentaDestino, e.Comision);
+                _log.LogInformation("[EMAIL → {Email}] Recibiste S/ {Monto:N2} de la cuenta {Origen}",
+                    e.EmailDestinatario, e.Monto, e.CuentaOrigen);
+                break;
+
+            default:
+                _log.LogWarning("[EMAIL] Tipo de operación sin plantilla de correo: {Tipo}", e.Tipo);
+                break;
         }
         return Task.CompletedTask;
     }

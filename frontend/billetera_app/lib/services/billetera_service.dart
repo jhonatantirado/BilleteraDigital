@@ -25,6 +25,14 @@ class BilleteraService {
         'monto': _redondear(monto),
       }) as Map<String, dynamic>);
 
+  Future<Transaccion> retirar(String billeteraId, double monto,
+          {String? descripcion}) async =>
+      Transaccion.fromJson(await _api.post('/transacciones/retiros', {
+        'billeteraId': billeteraId,
+        'monto': _redondear(monto),
+        'descripcion': descripcion,
+      }) as Map<String, dynamic>);
+
   Future<ResultadoTransferencia> transferir({
     required String billeteraOrigenId,
     required String numeroCuentaDestino,

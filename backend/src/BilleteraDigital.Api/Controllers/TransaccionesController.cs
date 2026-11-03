@@ -23,6 +23,17 @@ public class TransaccionesController : ControllerBase
         return StatusCode(StatusCodes.Status201Created, resultado);
     }
 
+    /// <summary>Retira saldo de la billetera (simula un abono a cuenta bancaria).</summary>
+    [HttpPost("retiros")]
+    [ProducesResponseType(typeof(TransaccionResponse), StatusCodes.Status201Created)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<TransaccionResponse>> Retirar([FromBody] RetiroRequest request)
+    {
+        // La billetera a debitar sale del token, no del body
+        var resultado = await _servicio.RetirarAsync(request with { BilleteraId = User.BilleteraId() });
+        return StatusCode(StatusCodes.Status201Created, resultado);
+    }
+
     /// <summary>Transfiere dinero a otra billetera por número de cuenta.</summary>
     [HttpPost("transferencias")]
     [ProducesResponseType(typeof(TransferenciaResponse), StatusCodes.Status201Created)]

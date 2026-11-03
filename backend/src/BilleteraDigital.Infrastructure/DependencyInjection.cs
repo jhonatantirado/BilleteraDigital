@@ -37,6 +37,7 @@ public static class DependencyInjection
             sp.GetRequiredService<ILogger<BilleteraRepositoryConCache>>()));
 
         services.AddScoped<ITransaccionRepository, TransaccionRepository>();
+        services.AddScoped<IPuntosFidelidadRepository, PuntosFidelidadRepository>();
         services.AddScoped<IUnitOfWork, UnidadDeTrabajo>();
 
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();
@@ -47,6 +48,7 @@ public static class DependencyInjection
         services.AddSingleton<ITransaccionObserver, NotificacionEmailObserver>();
         services.AddSingleton<ITransaccionObserver, AlertaFraudeObserver>();
         services.AddSingleton<ITransaccionObserver, CacheBilleterasObserver>();
+        services.AddSingleton<ITransaccionObserver, PuntosFidelidadObserver>();
 
         return services;
     }

@@ -89,3 +89,29 @@ public sealed class CreadorTransferenciaRecibida : CreadorTransaccion
             d.Referencia);
     }
 }
+
+/// <summary>
+/// ConcreteCreator: salida de dinero hacia fuera del sistema (cuenta bancaria, cajero).
+/// Como la recarga, no tiene contraparte; a diferencia de ella, el saldo se DEBITA.
+/// Agregar este tipo no modificó la clase base ni <see cref="ProveedorCreadores"/>.
+/// </summary>
+public sealed class CreadorRetiro : CreadorTransaccion
+{
+    public override TipoTransaccion Tipo => TipoTransaccion.Retiro;
+
+    protected override Transaccion CrearTransaccion(DatosTransaccion d)
+    {
+        if (d.Contraparte is not null)
+            throw new ArgumentException("Un retiro no tiene billetera contraparte.");
+
+        return Transaccion.Construir(
+            billeteraId: d.Billetera.Id,
+            tipo: Tipo,
+            monto: d.Monto,
+            comision: d.Comision,
+            saldoResultante: d.Billetera.Saldo,
+            contraparteId: null,
+            descripcion: Limpiar(d.Descripcion, "Retiro de saldo"),
+            referencia: d.Referencia);
+    }
+}

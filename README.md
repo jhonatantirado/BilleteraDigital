@@ -11,8 +11,9 @@ Aplicación completa (backend + base de datos + app móvil) para demostrar en cl
 | Comunicación | API REST + JSON (errores en formato RFC 7807 *ProblemDetails*) |
 
 Funcionalidades: **registro de clientes** (con apertura automática de billetera),
-**inicio de sesión**, **recarga de saldo**, **transferencias** entre billeteras con
-comisión y **historial de transacciones** paginado y filtrable.
+**inicio de sesión**, **recarga** y **retiro de saldo**, **transferencias** entre
+billeteras con comisión, **puntos de fidelidad** e **historial de transacciones**
+paginado y filtrable.
 
 ---
 
@@ -41,10 +42,11 @@ flowchart LR
 ```
 backend/src
 ├── BilleteraDigital.Domain          ← núcleo: no depende de NADA
-│   ├── Entidades/   Cliente, Billetera, Transaccion  (entidades ricas)
+│   ├── Entidades/   Cliente, Billetera, Transaccion, MovimientoPuntos  (entidades ricas)
 │   ├── Enums/       TipoTransaccion
 │   ├── Excepciones/ ReglaDeNegocioException, SaldoInsuficienteException
-│   └── Interfaces/  IClienteRepository, IBilleteraRepository, ITransaccionRepository, IUnitOfWork
+│   └── Interfaces/  IClienteRepository, IBilleteraRepository, ITransaccionRepository,
+│                    IPuntosFidelidadRepository, IUnitOfWork
 ├── BilleteraDigital.Application     ← casos de uso; depende solo de Domain
 │   ├── DTOs/        contratos de entrada/salida de la API
 │   ├── Servicios/   ClienteService, BilleteraService
@@ -52,10 +54,11 @@ backend/src
 ├── BilleteraDigital.Infrastructure  ← detalles técnicos; implementa las interfaces
 │   ├── Persistencia/ BilleteraDbContext (EF Core), UnidadDeTrabajo
 │   ├── Repositorios/ ClienteRepository, BilleteraRepository, TransaccionRepository,
-│   │                 BilleteraRepositoryConCache (Decorator)
+│   │                 PuntosFidelidadRepository, BilleteraRepositoryConCache (Decorator)
 │   ├── Cache/        CacheBilleteras (claves, tiempos de vida e invalidación)
 │   ├── Seguridad/    Pbkdf2PasswordHasher, JwtGeneradorToken
-│   └── Observadores/ AuditoriaArchivo, NotificacionEmail, AlertaFraude, CacheBilleteras
+│   └── Observadores/ AuditoriaArchivo, NotificacionEmail, AlertaFraude, CacheBilleteras,
+│                     PuntosFidelidad
 └── BilleteraDigital.Api             ← presentación (MVC) y raíz de composición
     ├── Controllers/  ClientesController, BilleterasController, TransaccionesController
     ├── Middleware/   ManejoErroresMiddleware (excepción → código HTTP)
@@ -90,11 +93,13 @@ llama al Model y avisa con `notifyListeners()`, y la View se redibuja (`context.
 |---|---|---|---|
 | POST | `/api/clientes` | Registrar cliente (+ billetera) | 201, 409, 422 |
 | POST | `/api/clientes/login` | Iniciar sesión | 200, 401 |
-| GET | `/api/clientes/{id}` | Cliente con billetera | 200, 404 |
+| GET | `/api/clientes/{id}` | Cliente con billetera | 200, 403, 404 |
+| GET | `/api/clientes/{id}/puntos` | Puntos de fidelidad (total y últimos movimientos) | 200, 403, 404 |
 | GET | `/api/billeteras/{id}` | Saldo de la billetera | 200, 404 |
 | GET | `/api/billeteras/cuenta/{numero}` | Titular de una cuenta (antes de transferir) | 200, 404 |
 | GET | `/api/billeteras/{id}/transacciones?pagina=&tamano=&tipo=` | Historial paginado | 200, 404 |
 | POST | `/api/transacciones/recargas` | Recargar saldo | 201, 404, 422 |
+| POST | `/api/transacciones/retiros` | Retirar saldo (máx. S/ 2,000) | 201, 404, 422 |
 | POST | `/api/transacciones/transferencias` | Transferir dinero | 201, 404, 422 |
 | GET | `/api/transacciones/comision?monto=` | Previsualizar comisión | 200, 422 |
 
@@ -187,6 +192,7 @@ classDiagram
   CreadorTransaccion <|-- CreadorRecarga
   CreadorTransaccion <|-- CreadorTransferenciaEnviada
   CreadorTransaccion <|-- CreadorTransferenciaRecibida
+  CreadorTransaccion <|-- CreadorRetiro
   CreadorTransaccion ..> Transaccion : crea
 ```
 
@@ -194,6 +200,13 @@ classDiagram
 `CrearTransaccion()`, que cada subclase implementa (la enviada registra la comisión y
 el destino; la recibida nunca cobra comisión; la recarga no tiene contraparte).
 `ProveedorCreadores` entrega el creador según el `TipoTransaccion`.
+
+**Extensión (ejercicio 2):** el tipo `Retiro` se agregó con un creador nuevo
+(`CreadorRetiro`) y una línea en `RegistroAplicacion.cs`; ni la clase base ni
+`ProveedorCreadores` cambiaron. En cambio, *agregar un tipo* sí obligó a tocar el
+enum, las restricciones `CHECK` de la BD (`03_retiros_y_puntos.sql`), el `switch` de
+`NotificacionEmailObserver` y el enum de Flutter: el principio Abierto/Cerrado
+protege los puntos de variación diseñados para cambiar, no todo el sistema.
 
 ### 2.4 Observer — reacciones a cada transacción
 
@@ -206,18 +219,31 @@ sequenceDiagram
   participant E as NotificacionEmail
   participant F as AlertaFraude
   participant C as CacheBilleteras
+  participant P as PuntosFidelidad
   S->>UoW: ConfirmarAsync() (COMMIT)
   S->>Sub: NotificarAsync(evento)
   Sub->>A: ActualizarAsync(evento)
   Sub->>E: ActualizarAsync(evento)
   Sub->>F: ActualizarAsync(evento)
   Sub->>C: ActualizarAsync(evento) (invalida la caché)
+  Sub->>P: ActualizarAsync(evento) (guarda puntos en otra transacción)
 ```
 
 - Se notifica **después del COMMIT**: si la BD falla, nadie recibe un email falso.
 - Si un observador lanza una excepción, los demás igual se ejecutan.
 - Para ver el efecto: consola de la API (emails simulados, alertas ≥ S/ 3,000) y el
   archivo `logs/auditoria.jsonl`.
+
+**`PuntosFidelidadObserver`** guarda en `puntos_fidelidad` 1 punto por cada S/ 10 en
+recargas y transferencias enviadas (los retiros no suman; la regla vive en la entidad
+`MovimientoPuntos`). Tres decisiones para discutir:
+- **Ciclo de vida:** el observador es *Singleton* y el `DbContext` es *Scoped*; por eso
+  crea su propio *scope* por evento con `IServiceScopeFactory`.
+- **Consistencia eventual:** se ejecuta después del COMMIT y en otra transacción; si
+  falla, la operación ya ocurrió y los puntos no se otorgan. La solución de producción
+  sería el patrón *Transactional Outbox*.
+- **Idempotencia:** `referencia` es `UNIQUE`: un evento procesado dos veces no
+  duplica puntos. Para verlos: `SELECT * FROM v_puntos;`.
 
 ### 2.5 Singleton
 
@@ -286,7 +312,14 @@ docker compose up -d
 ```
 
 Sin Docker: crear usuario `billetera` / `billetera123` y la base `billetera_digital`,
-luego ejecutar `database/01_esquema.sql` y `database/02_datos_prueba.sql`.
+luego ejecutar `database/01_esquema.sql`, `02_datos_prueba.sql` y `03_retiros_y_puntos.sql`.
+
+Si tu base **ya existía** (Docker solo ejecuta los scripts la primera vez), aplica a
+mano el script de retiros y puntos (es idempotente):
+
+```bash
+docker exec -i billetera_postgres psql -U billetera -d billetera_digital < database/03_retiros_y_puntos.sql
+```
 
 Datos de prueba: `ana@demo.pe` y `luis@demo.pe`, contraseña **`Clave123!`**
 (cuentas `1900000001` con S/ 1,500 y `1900000002` con S/ 800).
@@ -342,8 +375,11 @@ flutter test
 
 1. ~~**Strategy:** comisión 0 para clientes con más de 6 meses de antigüedad.~~
    *Resuelto con `ClienteAntiguoSinComisionStrategy`.*
-2. **Factory Method + Observer:** nuevo tipo `Retiro` con su creador y un
-   `PuntosFidelidadObserver`.
+2. ~~**Factory Method + Observer:** nuevo tipo `Retiro` con su creador y un
+   `PuntosFidelidadObserver`.~~
+   *Resuelto: `CreadorRetiro` + `POST /api/transacciones/retiros`, y
+   `PuntosFidelidadObserver` que guarda los puntos en `puntos_fidelidad`
+   (ver secciones 2.3 y 2.4).*
 3. ~~**Seguridad:** agregar autenticación JWT (`Microsoft.AspNetCore.Authentication.JwtBearer`)
    y tomar la billetera de origen del token en lugar del cuerpo de la petición.~~
    *Resuelto: `JwtGeneradorToken` emite el token en login/registro, todos los endpoints

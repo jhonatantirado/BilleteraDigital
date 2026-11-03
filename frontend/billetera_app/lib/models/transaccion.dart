@@ -1,7 +1,8 @@
 enum TipoTransaccion {
   recarga('Recarga', 'Recarga'),
   transferenciaEnviada('TransferenciaEnviada', 'Enviada'),
-  transferenciaRecibida('TransferenciaRecibida', 'Recibida');
+  transferenciaRecibida('TransferenciaRecibida', 'Recibida'),
+  retiro('Retiro', 'Retiro');
 
   /// Valor exacto que usa la API
   final String valorApi;
@@ -11,7 +12,11 @@ enum TipoTransaccion {
   static TipoTransaccion desdeApi(String valor) =>
       TipoTransaccion.values.firstWhere((t) => t.valorApi == valor);
 
-  bool get esIngreso => this != TipoTransaccion.transferenciaEnviada;
+  /// Lista explícita de ingresos: con "!= enviada" un tipo nuevo (p. ej. retiro)
+  /// se mostraría por error como ingreso.
+  bool get esIngreso =>
+      this == TipoTransaccion.recarga ||
+      this == TipoTransaccion.transferenciaRecibida;
 }
 
 class Transaccion {

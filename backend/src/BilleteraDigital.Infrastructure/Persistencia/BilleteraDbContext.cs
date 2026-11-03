@@ -17,6 +17,7 @@ public class BilleteraDbContext : DbContext
     public DbSet<Cliente> Clientes => Set<Cliente>();
     public DbSet<Billetera> Billeteras => Set<Billetera>();
     public DbSet<Transaccion> Transacciones => Set<Transaccion>();
+    public DbSet<MovimientoPuntos> MovimientosPuntos => Set<MovimientoPuntos>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -74,6 +75,25 @@ public class BilleteraDbContext : DbContext
             e.HasOne<Billetera>().WithMany().HasForeignKey(t => t.BilleteraId);
             e.HasOne(t => t.BilleteraContraparte).WithMany().HasForeignKey(t => t.BilleteraContraparteId);
             e.HasIndex(t => new { t.BilleteraId, t.Fecha });
+        });
+
+        mb.Entity<MovimientoPuntos>(e =>
+        {
+            e.ToTable("puntos_fidelidad");
+            e.HasKey(p => p.Id);
+            e.Property(p => p.Id).HasColumnName("id");
+            e.Property(p => p.ClienteId).HasColumnName("cliente_id");
+            e.Property(p => p.Referencia).HasColumnName("referencia");
+            e.Property(p => p.TipoOperacion).HasColumnName("tipo_operacion")
+             .HasConversion(v => v.ToString(), v => Enum.Parse<TipoTransaccion>(v))
+             .HasMaxLength(30);
+            e.Property(p => p.Monto).HasColumnName("monto").HasColumnType("numeric(14,2)");
+            e.Property(p => p.Puntos).HasColumnName("puntos");
+            e.Property(p => p.Fecha).HasColumnName("fecha");
+
+            e.HasOne<Cliente>().WithMany().HasForeignKey(p => p.ClienteId);
+            e.HasIndex(p => p.Referencia).IsUnique();       // idempotencia
+            e.HasIndex(p => new { p.ClienteId, p.Fecha });
         });
     }
 }

@@ -15,6 +15,7 @@ class TransaccionTile extends StatelessWidget {
       TipoTransaccion.recarga => Icons.add_card,
       TipoTransaccion.transferenciaEnviada => Icons.call_made,
       TipoTransaccion.transferenciaRecibida => Icons.call_received,
+      TipoTransaccion.retiro => Icons.account_balance,
     };
     final subtitulo = [
       if (t.nombreContraparte != null) t.nombreContraparte!,

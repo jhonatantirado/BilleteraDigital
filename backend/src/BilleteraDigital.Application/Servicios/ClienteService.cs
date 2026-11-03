@@ -19,10 +19,13 @@ public class ClienteService : IClienteService
     private readonly IUnitOfWork _unidadDeTrabajo;
     private readonly IPasswordHasher _hasher;
     private readonly IGeneradorToken _tokens;
+    private readonly IPuntosFidelidadRepository _puntos;
 
     public ClienteService(IClienteRepository clientes, IBilleteraRepository billeteras,
-                          IUnitOfWork unidadDeTrabajo, IPasswordHasher hasher, IGeneradorToken tokens)
+                          IUnitOfWork unidadDeTrabajo, IPasswordHasher hasher, IGeneradorToken tokens,
+                          IPuntosFidelidadRepository puntos)
     {
+        _puntos = puntos;
         _tokens = tokens;
         _clientes = clientes;
         _billeteras = billeteras;
@@ -84,6 +87,18 @@ public class ClienteService : IClienteService
         var billetera = await _billeteras.ObtenerPorClienteIdAsync(cliente.Id)
                         ?? throw new NoEncontradoException("El cliente no tiene billetera.");
         return Mapeador.AClienteResponse(cliente, billetera);
+    }
+
+    public async Task<PuntosResponse> ObtenerPuntosAsync(Guid clienteId)
+    {
+        if (await _clientes.ObtenerPorIdAsync(clienteId) is null)
+            throw new NoEncontradoException("Cliente no encontrado.");
+
+        var total = await _puntos.ObtenerTotalAsync(clienteId);
+        var ultimos = await _puntos.ObtenerUltimosAsync(clienteId, 10);
+        return new PuntosResponse(total, ultimos
+            .Select(m => new MovimientoPuntosResponse(m.TipoOperacion.ToString(), m.Monto, m.Puntos, m.Referencia, m.Fecha))
+            .ToList());
     }
 
     /// <summary>Emite el JWT del cliente (incluye su billetera como claim).</summary>

@@ -32,6 +32,7 @@ public static class RegistroAplicacion
         services.AddSingleton<CreadorTransaccion, CreadorRecarga>();
         services.AddSingleton<CreadorTransaccion, CreadorTransferenciaEnviada>();
         services.AddSingleton<CreadorTransaccion, CreadorTransferenciaRecibida>();
+        services.AddSingleton<CreadorTransaccion, CreadorRetiro>();
         services.AddSingleton<ProveedorCreadores>();
 
         // OBSERVER + SINGLETON: un único Subject compartido por toda la aplicación

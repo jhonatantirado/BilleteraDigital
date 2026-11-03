@@ -49,4 +49,14 @@ public class ClientesController : ControllerBase
         User.ExigirCliente(id);
         return Ok(await _servicio.ObtenerPorIdAsync(id));
     }
+
+    /// <summary>Puntos de fidelidad del cliente autenticado (total y últimos movimientos).</summary>
+    [HttpGet("{id:guid}/puntos")]
+    [ProducesResponseType(typeof(PuntosResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public async Task<ActionResult<PuntosResponse>> Puntos(Guid id)
+    {
+        User.ExigirCliente(id);
+        return Ok(await _servicio.ObtenerPuntosAsync(id));
+    }
 }

@@ -93,6 +93,17 @@ class OperacionesController extends ChangeNotifier {
     return r != null;
   }
 
+  // --------------------------------------------------------------- Retiro
+  Future<bool> retirar(double monto, String? descripcion) async {
+    final r = await _procesar(() async {
+      final t = await _servicio.retirar(_billeteraId, monto,
+          descripcion: (descripcion?.trim().isEmpty ?? true) ? null : descripcion!.trim());
+      _sesion.actualizarSaldo(t.saldoResultante);
+      return t;
+    });
+    return r != null;
+  }
+
   void reiniciar() {
     _debounce?.cancel();
     destinatario = null;

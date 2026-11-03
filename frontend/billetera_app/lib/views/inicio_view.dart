@@ -5,6 +5,7 @@ import '../controllers/historial_controller.dart';
 import '../controllers/sesion_controller.dart';
 import 'historial_view.dart';
 import 'recarga_view.dart';
+import 'retiro_view.dart';
 import 'transferencia_view.dart';
 import 'widgets/tarjeta_saldo.dart';
 import 'widgets/transaccion_tile.dart';
@@ -63,12 +64,18 @@ class _InicioContenido extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             TarjetaSaldo(cliente: cliente),
+            const SizedBox(height: 12),
+            _TarjetaPuntos(total: sesion.puntos?.total),
             const SizedBox(height: 20),
             Row(children: [
               _Accion(
                   icono: Icons.add_card,
                   texto: 'Recargar',
                   onTap: () => _abrir(context, const RecargaView())),
+              _Accion(
+                  icono: Icons.account_balance,
+                  texto: 'Retirar',
+                  onTap: () => _abrir(context, const RetiroView())),
               _Accion(
                   icono: Icons.send_rounded,
                   texto: 'Transferir',
@@ -103,6 +110,27 @@ class _InicioContenido extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Muestra los puntos de fidelidad (los otorga el PuntosFidelidadObserver del backend).
+class _TarjetaPuntos extends StatelessWidget {
+  const _TarjetaPuntos({required this.total});
+  final int? total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        leading: const Icon(Icons.stars_rounded, color: Colors.amber),
+        title: const Text('Puntos de fidelidad'),
+        subtitle: const Text('1 punto por cada S/ 10 en recargas y transferencias'),
+        trailing: Text(
+          total?.toString() ?? '—',
+          style: Theme.of(context).textTheme.titleLarge,
         ),
       ),
     );

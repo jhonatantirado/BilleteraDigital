@@ -1,5 +1,6 @@
 import '../core/api_client.dart';
 import '../models/cliente.dart';
+import '../models/puntos.dart';
 
 /// Parte del MODELO: encapsula los endpoints REST de /clientes.
 /// Los controladores no conocen URLs ni JSON, solo objetos Dart.
@@ -30,6 +31,9 @@ class ClienteService {
         .post('/clientes/login', {'email': email, 'password': password});
     return _iniciarSesion(json);
   }
+
+  Future<Puntos> puntos(String clienteId) async => Puntos.fromJson(
+      await _api.get('/clientes/$clienteId/puntos') as Map<String, dynamic>);
 
   /// La API responde { token, expira, cliente }: se guarda el token en el
   /// ApiClient (Singleton) para que todas las peticiones siguientes lo envíen.

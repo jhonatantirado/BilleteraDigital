@@ -2,6 +2,9 @@ namespace BilleteraDigital.Application.DTOs;
 
 public record RecargaRequest(Guid BilleteraId, decimal Monto);
 
+/// <summary>Retiro de saldo hacia fuera del sistema (la billetera se toma del token).</summary>
+public record RetiroRequest(Guid BilleteraId, decimal Monto, string? Descripcion);
+
 public record TransferenciaRequest(
     Guid BilleteraOrigenId,
     string NumeroCuentaDestino,

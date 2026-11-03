@@ -24,6 +24,7 @@ public class BilleteraService : IBilleteraService
     public const decimal MontoMinimoTransferencia = 1m;
     public const decimal MontoMaximoTransferencia = 10_000m;
     public const decimal MontoMaximoRecarga = 5_000m;
+    public const decimal MontoMaximoRetiro = 2_000m;
 
     private readonly IBilleteraRepository _billeteras;
     private readonly ITransaccionRepository _transacciones;
@@ -107,6 +108,47 @@ public class BilleteraService : IBilleteraService
         // OBSERVER: se notifica DESPUÉS del COMMIT
         await _subject.NotificarAsync(new TransaccionEvento(
             TipoTransaccion.Recarga, movimiento.Referencia, billetera.NumeroCuenta,
+            titular?.Email ?? "", null, null, r.Monto, 0m, billetera.Saldo, movimiento.Fecha,
+            billetera.Id, null));
+
+        return Mapeador.ATransaccionResponse(movimiento);
+    }
+
+    // ------------------------------------------------------------------- RETIRO
+    public async Task<TransaccionResponse> RetirarAsync(RetiroRequest r)
+    {
+        ValidarMonto(r.Monto, 1m, MontoMaximoRetiro);
+
+        Transaccion movimiento;
+        Billetera billetera;
+
+        await _unidadDeTrabajo.IniciarTransaccionAsync();
+        try
+        {
+            // Bloqueo de fila: dos retiros simultáneos no pueden leer el mismo saldo
+            billetera = await _billeteras.ObtenerPorIdParaActualizarAsync(r.BilleteraId)
+                        ?? throw new NoEncontradoException("Billetera no encontrada.");
+
+            billetera.Debitar(r.Monto); // el Dominio lanza SaldoInsuficienteException (→ 422)
+
+            // FACTORY METHOD: el nuevo tipo solo necesitó su propio creador
+            movimiento = _creadores.Para(TipoTransaccion.Retiro)
+                .Registrar(new DatosTransaccion(billetera, r.Monto, 0m, Guid.NewGuid(), null, r.Descripcion));
+
+            await _transacciones.AgregarAsync(movimiento);
+            await _unidadDeTrabajo.ConfirmarAsync();
+        }
+        catch
+        {
+            await _unidadDeTrabajo.RevertirAsync();
+            throw;
+        }
+
+        var titular = await _clientes.ObtenerPorIdAsync(billetera.ClienteId);
+
+        // OBSERVER: auditoría, email, fraude, caché y puntos reaccionan sin cambios en este servicio
+        await _subject.NotificarAsync(new TransaccionEvento(
+            TipoTransaccion.Retiro, movimiento.Referencia, billetera.NumeroCuenta,
             titular?.Email ?? "", null, null, r.Monto, 0m, billetera.Saldo, movimiento.Fecha,
             billetera.Id, null));
 
