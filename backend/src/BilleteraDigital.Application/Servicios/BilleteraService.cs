@@ -107,7 +107,8 @@ public class BilleteraService : IBilleteraService
         // OBSERVER: se notifica DESPUÉS del COMMIT
         await _subject.NotificarAsync(new TransaccionEvento(
             TipoTransaccion.Recarga, movimiento.Referencia, billetera.NumeroCuenta,
-            titular?.Email ?? "", null, null, r.Monto, 0m, billetera.Saldo, movimiento.Fecha));
+            titular?.Email ?? "", null, null, r.Monto, 0m, billetera.Saldo, movimiento.Fecha,
+            billetera.Id, null));
 
         return Mapeador.ATransaccionResponse(movimiento);
     }
@@ -173,7 +174,8 @@ public class BilleteraService : IBilleteraService
         // OBSERVER: auditoría, email y alerta de fraude reaccionan sin que este servicio los conozca
         await _subject.NotificarAsync(new TransaccionEvento(
             TipoTransaccion.TransferenciaEnviada, referencia, origen.NumeroCuenta, emisor.Email,
-            destino.NumeroCuenta, receptor?.Email, r.Monto, comision, origen.Saldo, enviada.Fecha));
+            destino.NumeroCuenta, receptor?.Email, r.Monto, comision, origen.Saldo, enviada.Fecha,
+            origen.Id, destino.Id));
 
         return new TransferenciaResponse(referencia, r.Monto, comision, estrategia, origen.Saldo,
             destino.NumeroCuenta, receptor?.NombreCompleto ?? "", enviada.Fecha);

@@ -13,4 +13,6 @@ public record TransaccionEvento(
     decimal Monto,
     decimal Comision,
     decimal SaldoResultante,
-    DateTime Fecha);
+    DateTime Fecha,
+    Guid BilleteraOrigenId,
+    Guid? BilleteraDestinoId);

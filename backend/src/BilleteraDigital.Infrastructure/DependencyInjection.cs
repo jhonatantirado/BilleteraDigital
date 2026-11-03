@@ -1,6 +1,7 @@
 using BilleteraDigital.Application.Interfaces;
 using BilleteraDigital.Application.Patrones.Observer;
 using BilleteraDigital.Domain.Interfaces;
+using BilleteraDigital.Infrastructure.Cache;
 using BilleteraDigital.Infrastructure.Observadores;
 using BilleteraDigital.Infrastructure.Persistencia;
 using BilleteraDigital.Infrastructure.Repositorios;
@@ -8,6 +9,7 @@ using BilleteraDigital.Infrastructure.Seguridad;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 
 namespace BilleteraDigital.Infrastructure;
 
@@ -23,7 +25,17 @@ public static class DependencyInjection
         services.AddDbContext<BilleteraDbContext>(o => o.UseNpgsql(cadena));
 
         services.AddScoped<IClienteRepository, ClienteRepository>();
-        services.AddScoped<IBilleteraRepository, BilleteraRepository>();
+
+        // DECORATOR: quien pide IBilleteraRepository recibe la versión con caché,
+        // que a su vez envuelve al repositorio real de EF Core.
+        services.AddMemoryCache();                    // IMemoryCache: Singleton, compartida entre peticiones
+        services.AddSingleton<CacheBilleteras>();
+        services.AddScoped<BilleteraRepository>();    // componente real (Scoped, igual que el DbContext)
+        services.AddScoped<IBilleteraRepository>(sp => new BilleteraRepositoryConCache(
+            sp.GetRequiredService<BilleteraRepository>(),
+            sp.GetRequiredService<CacheBilleteras>(),
+            sp.GetRequiredService<ILogger<BilleteraRepositoryConCache>>()));
+
         services.AddScoped<ITransaccionRepository, TransaccionRepository>();
         services.AddScoped<IUnitOfWork, UnidadDeTrabajo>();
 
@@ -34,6 +46,7 @@ public static class DependencyInjection
         services.AddSingleton<ITransaccionObserver, AuditoriaArchivoObserver>();
         services.AddSingleton<ITransaccionObserver, NotificacionEmailObserver>();
         services.AddSingleton<ITransaccionObserver, AlertaFraudeObserver>();
+        services.AddSingleton<ITransaccionObserver, CacheBilleterasObserver>();
 
         return services;
     }

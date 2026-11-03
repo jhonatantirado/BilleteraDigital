@@ -126,7 +126,7 @@ public class ObserverTests
     }
 
     private static TransaccionEvento Evento() => new(TipoTransaccion.Recarga, Guid.NewGuid(),
-        "1900000001", "a@a.pe", null, null, 50m, 0m, 50m, DateTime.UtcNow);
+        "1900000001", "a@a.pe", null, null, 50m, 0m, 50m, DateTime.UtcNow, Guid.NewGuid(), null);
 
     [Fact]
     public async Task Notifica_a_todos_los_suscritos_aunque_uno_falle()
