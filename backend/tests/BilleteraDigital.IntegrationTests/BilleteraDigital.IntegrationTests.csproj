@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    PRUEBAS DE INTEGRACIÓN: corren contra un PostgreSQL 16 REAL que Testcontainers
+    levanta en Docker (y destruye al terminar). Requieren Docker en marcha.
+    Las pruebas unitarias (BilleteraDigital.Tests) no lo necesitan.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.11.1" />
+    <PackageReference Include="xunit" Version="2.9.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageReference Include="Testcontainers.PostgreSql" Version="3.10.0" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\BilleteraDigital.Api\BilleteraDigital.Api.csproj" />
+    <ProjectReference Include="..\..\src\BilleteraDigital.Infrastructure\BilleteraDigital.Infrastructure.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Los mismos scripts que usa docker compose, copiados junto a las pruebas -->
+    <None Include="..\..\..\database\*.sql" LinkBase="database" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -337,6 +337,43 @@ envuelve la acción del controlador; `BilleteraService` no cambió.
   abandonada y un reintento se volvería a procesar. La solución completa es guardar la
   respuesta **en la misma transacción** que el movimiento (Unit of Work).
 
+### 2.8 Pruebas de concurrencia (PostgreSQL real)
+
+Proyecto `tests/BilleteraDigital.IntegrationTests`: **Testcontainers** levanta un
+`postgres:16` desechable, ejecuta los scripts de `database/` y las pruebas llaman a
+`BilleteraService` con los mismos registros de dependencias que la API. Cada operación
+simultánea usa su **propio scope** (un `DbContext` no admite dos hilos) y todas salen a
+la vez con una "señal de salida".
+
+| Escenario | Qué se comprueba | Resultado esperado |
+|---|---|---|
+| 1. 50 transferencias de S/ 100 con saldo de S/ 1,000 | Saldo nunca negativo, conservación del dinero, historial coherente | 10 exitosas, 40 `SaldoInsuficienteException`, Ana S/ 0, Luis S/ 1,000 |
+| 2. 25 A→B + 25 B→A simultáneas | Ausencia de interbloqueos (las filas se bloquean siempre por Id) | 50 exitosas, saldos intactos |
+| 3. Escenario 1 **sin `FOR UPDATE`** (demostración) | Que el invariante **se rompe** (*lost update*) | Ver abajo |
+
+Sin `FOR UPDATE` (un repositorio *Decorator* exclusivo de la prueba hace un `SELECT`
+normal y una pausa de 20 ms) y con el aislamiento por defecto (*Read Committed*), las
+sentencias reproducidas en PostgreSQL 16 dieron en **3 de 3 corridas**:
+
+- las **50** transferencias "exitosas" y **50 movimientos por S/ 5,000** en el historial;
+- Ana terminó con **S/ 900** y Luis con **S/ 100**: cada `UPDATE saldo = <valor>` de EF
+  pisó al anterior;
+- la **suma siguió dando S/ 1,000** (ambas cuentas perdieron lo mismo) y el
+  `CHECK (saldo >= 0)` no saltó. La conservación sola no basta: lo que delata el error
+  es que el historial no cuadra con el saldo.
+
+Y si se quita el orden por Id al bloquear (escenario 2), entre **46 y 49 de 50**
+transferencias cruzadas fallaron con `40P01 deadlock detected`.
+
+```bash
+dotnet test tests/BilleteraDigital.IntegrationTests                                     # requiere Docker
+dotnet test tests/BilleteraDigital.IntegrationTests --filter "Categoria!=Demostracion"  # para CI
+```
+
+Alternativas a `FOR UPDATE` para discutir: concurrencia optimista (`xmin` de PostgreSQL
+como token de versión + reintentos), `UPDATE … SET saldo = saldo - @m WHERE saldo >= @m`
+atómico, o aislamiento `SERIALIZABLE` con reintentos ante el error `40001`.
+
 ### Patrones complementarios presentes (para mencionar)
 DTO, Inyección de Dependencias, Middleware (*Chain of Responsibility* del pipeline
 de ASP.NET), Entidades ricas (DDD).
@@ -376,8 +413,11 @@ Requiere .NET 8 SDK.
 cd backend
 dotnet restore
 dotnet run --project src/BilleteraDigital.Api     # http://localhost:5000/swagger
-dotnet test                                       # pruebas de los patrones
+dotnet test tests/BilleteraDigital.Tests          # pruebas unitarias (sin BD)
+dotnet test tests/BilleteraDigital.IntegrationTests  # concurrencia con PostgreSQL real (requiere Docker)
 ```
+
+`dotnet test` sin argumentos ejecuta ambos proyectos, así que también necesita Docker.
 
 La cadena de conexión está en `src/BilleteraDigital.Api/appsettings.json`.
 
@@ -437,5 +477,6 @@ flutter test
 5. ~~**Idempotencia:** cabecera `Idempotency-Key` para evitar transferencias duplicadas
    si el usuario pulsa dos veces.~~
    *Resuelto: filtro `[Idempotente]` + tabla `idempotencia` (ver la sección 2.7).*
-6. **Pruebas de concurrencia:** lanzar 50 transferencias simultáneas y comprobar que el
-   saldo nunca queda negativo (y qué pasa si se quita el `FOR UPDATE`).
+6. ~~**Pruebas de concurrencia:** lanzar 50 transferencias simultáneas y comprobar que el
+   saldo nunca queda negativo (y qué pasa si se quita el `FOR UPDATE`).~~
+   *Resuelto: proyecto `BilleteraDigital.IntegrationTests` (ver la sección 2.8).*
