@@ -1,14 +1,10 @@
-using System.Net;
-using BilleteraDigital.Application.Excepciones;
-using BilleteraDigital.Domain.Excepciones;
-using Microsoft.AspNetCore.Mvc;
-
 namespace BilleteraDigital.Api.Middleware;
 
 /// <summary>
 /// Traduce excepciones de las capas internas a códigos HTTP con un cuerpo
 /// estándar (RFC 7807 - ProblemDetails). Así los controladores quedan limpios
 /// de try/catch y el cliente Flutter siempre recibe el mismo formato de error.
+/// La tabla de traducción está en <see cref="TraductorErrores"/>.
 /// </summary>
 public class ManejoErroresMiddleware
 {
@@ -29,32 +25,14 @@ public class ManejoErroresMiddleware
         }
         catch (Exception ex)
         {
-            var (estado, titulo) = ex switch
-            {
-                NoEncontradoException => (HttpStatusCode.NotFound, "Recurso no encontrado"),
-                ConflictoException => (HttpStatusCode.Conflict, "Conflicto"),
-                CredencialesInvalidasException => (HttpStatusCode.Unauthorized, "No autorizado"),
-                AccesoDenegadoException => (HttpStatusCode.Forbidden, "Acceso denegado"),
-                ReglaDeNegocioException => (HttpStatusCode.UnprocessableEntity, "Regla de negocio"),
-                ArgumentException => (HttpStatusCode.BadRequest, "Solicitud inválida"),
-                _ => (HttpStatusCode.InternalServerError, "Error interno")
-            };
+            var (codigo, problema) = TraductorErrores.Traducir(ex, contexto.Request.Path);
 
-            if (estado == HttpStatusCode.InternalServerError)
+            if (codigo >= StatusCodes.Status500InternalServerError)
                 _log.LogError(ex, "Error no controlado");
 
-            var problema = new ProblemDetails
-            {
-                Status = (int)estado,
-                Title = titulo,
-                Detail = estado == HttpStatusCode.InternalServerError
-                    ? "Ocurrió un error inesperado." : ex.Message,
-                Instance = contexto.Request.Path
-            };
-
-            contexto.Response.StatusCode = (int)estado;
+            contexto.Response.StatusCode = codigo;
             await contexto.Response.WriteAsJsonAsync(problema, (System.Text.Json.JsonSerializerOptions?)null,
-                "application/problem+json");
+                TraductorErrores.TipoContenido);
         }
     }
 }

@@ -1,3 +1,4 @@
+using BilleteraDigital.Application.Idempotencia;
 using BilleteraDigital.Domain.Entidades;
 using BilleteraDigital.Domain.Enums;
 using Microsoft.EntityFrameworkCore;
@@ -18,6 +19,7 @@ public class BilleteraDbContext : DbContext
     public DbSet<Billetera> Billeteras => Set<Billetera>();
     public DbSet<Transaccion> Transacciones => Set<Transaccion>();
     public DbSet<MovimientoPuntos> MovimientosPuntos => Set<MovimientoPuntos>();
+    public DbSet<RegistroIdempotencia> Idempotencia => Set<RegistroIdempotencia>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -94,6 +96,23 @@ public class BilleteraDbContext : DbContext
             e.HasOne<Cliente>().WithMany().HasForeignKey(p => p.ClienteId);
             e.HasIndex(p => p.Referencia).IsUnique();       // idempotencia
             e.HasIndex(p => new { p.ClienteId, p.Fecha });
+        });
+
+        mb.Entity<RegistroIdempotencia>(e =>
+        {
+            e.ToTable("idempotencia");
+            e.HasKey(r => new { r.ClienteId, r.Clave });     // ← la garantía contra la carrera
+            e.Property(r => r.ClienteId).HasColumnName("cliente_id");
+            e.Property(r => r.Clave).HasColumnName("clave").HasMaxLength(64);
+            e.Property(r => r.Ruta).HasColumnName("ruta").HasMaxLength(100);
+            e.Property(r => r.HashCuerpo).HasColumnName("hash_cuerpo").HasMaxLength(64);
+            e.Property(r => r.Estado).HasColumnName("estado")
+             .HasConversion(v => v.ToString(), v => Enum.Parse<EstadoIdempotencia>(v))
+             .HasMaxLength(12);
+            e.Property(r => r.CodigoHttp).HasColumnName("codigo_http");
+            e.Property(r => r.Respuesta).HasColumnName("respuesta").HasColumnType("jsonb");
+            e.Property(r => r.TipoContenido).HasColumnName("tipo_contenido").HasMaxLength(60);
+            e.Property(r => r.FechaCreacion).HasColumnName("fecha_creacion");
         });
     }
 }

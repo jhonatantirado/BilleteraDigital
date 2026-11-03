@@ -50,18 +50,22 @@ backend/src
 ├── BilleteraDigital.Application     ← casos de uso; depende solo de Domain
 │   ├── DTOs/        contratos de entrada/salida de la API
 │   ├── Servicios/   ClienteService, BilleteraService
+│   ├── Idempotencia/ IIdempotenciaRepository, RegistroIdempotencia
 │   └── Patrones/    Strategy/, FactoryMethod/, Observer/
 ├── BilleteraDigital.Infrastructure  ← detalles técnicos; implementa las interfaces
 │   ├── Persistencia/ BilleteraDbContext (EF Core), UnidadDeTrabajo
 │   ├── Repositorios/ ClienteRepository, BilleteraRepository, TransaccionRepository,
-│   │                 PuntosFidelidadRepository, BilleteraRepositoryConCache (Decorator)
+│   │                 PuntosFidelidadRepository, IdempotenciaRepository,
+│   │                 BilleteraRepositoryConCache (Decorator)
 │   ├── Cache/        CacheBilleteras (claves, tiempos de vida e invalidación)
 │   ├── Seguridad/    Pbkdf2PasswordHasher, JwtGeneradorToken
+│   ├── Mantenimiento/ LimpiezaIdempotenciaService (borra claves de más de 24 h)
 │   └── Observadores/ AuditoriaArchivo, NotificacionEmail, AlertaFraude, CacheBilleteras,
 │                     PuntosFidelidad
 └── BilleteraDigital.Api             ← presentación (MVC) y raíz de composición
     ├── Controllers/  ClientesController, BilleterasController, TransaccionesController
-    ├── Middleware/   ManejoErroresMiddleware (excepción → código HTTP)
+    ├── Middleware/   ManejoErroresMiddleware + TraductorErrores (excepción → código HTTP)
+    ├── Filtros/      IdempotenciaFilter, [Idempotente] (cabecera Idempotency-Key)
     └── Configuracion/RegistroAplicacion (inyección de dependencias)
 ```
 
@@ -98,10 +102,13 @@ llama al Model y avisa con `notifyListeners()`, y la View se redibuja (`context.
 | GET | `/api/billeteras/{id}` | Saldo de la billetera | 200, 404 |
 | GET | `/api/billeteras/cuenta/{numero}` | Titular de una cuenta (antes de transferir) | 200, 404 |
 | GET | `/api/billeteras/{id}/transacciones?pagina=&tamano=&tipo=` | Historial paginado | 200, 404 |
-| POST | `/api/transacciones/recargas` | Recargar saldo | 201, 404, 422 |
-| POST | `/api/transacciones/retiros` | Retirar saldo (máx. S/ 2,000) | 201, 404, 422 |
-| POST | `/api/transacciones/transferencias` | Transferir dinero | 201, 404, 422 |
+| POST | `/api/transacciones/recargas` | Recargar saldo ⚑ | 201, 400, 404, 409, 422 |
+| POST | `/api/transacciones/retiros` | Retirar saldo (máx. S/ 2,000) ⚑ | 201, 400, 404, 409, 422 |
+| POST | `/api/transacciones/transferencias` | Transferir dinero ⚑ | 201, 400, 404, 409, 422 |
 | GET | `/api/transacciones/comision?monto=` | Previsualizar comisión | 200, 422 |
+
+⚑ Exigen la cabecera **`Idempotency-Key`** (por ejemplo, un UUID). Ver la sección 2.7.
+En Swagger aparece como un campo más de la operación.
 
 Ejemplo de error (todas las capas lo producen igual gracias al middleware):
 
@@ -295,6 +302,41 @@ en `BilleteraRepository`. `BilleteraService` no cambió; el único cambio está 
 - **Discusión:** Decorator vs. Proxy (misma estructura, distinta intención); con varias
   instancias de la API habría que usar `IDistributedCache` (p. ej. Redis).
 
+### 2.7 Idempotencia — `Idempotency-Key`
+
+**Problema:** si la respuesta de una transferencia se pierde (timeout, red móvil),
+el usuario reintenta y se le cobra dos veces. Desactivar el botón no basta: solo el
+servidor puede garantizar que una misma intención de pago se ejecute **una sola vez**.
+
+**Solución:** la app envía un identificador único por operación en la cabecera
+`Idempotency-Key`. El filtro `[Idempotente]` (en recargas, retiros y transferencias)
+envuelve la acción del controlador; `BilleteraService` no cambió.
+
+| Situación | Respuesta |
+|---|---|
+| Clave nueva | Procesa, **guarda la respuesta** y responde 201 |
+| Misma clave y mismos datos | **No mueve dinero**: repite la respuesta original + `Idempotent-Replayed: true` |
+| Misma clave con otros datos (monto, destino…) | 422 |
+| Misma clave mientras la primera sigue en proceso | 409 |
+| Sin cabecera o con formato inválido | 400 |
+
+- **Peticiones simultáneas:** la clave se **reserva** con
+  `INSERT … ON CONFLICT DO NOTHING` sobre la clave primaria `(cliente_id, clave)`
+  *antes* de mover dinero; PostgreSQL deja pasar solo a una (probado con 20 inserciones
+  simultáneas). Es la misma técnica que evita puntos duplicados en `puntos_fidelidad`.
+- **Errores:** los de negocio (p. ej. saldo insuficiente) se guardan y se repiten igual;
+  un 5xx **libera** la clave para que el reintento sí se procese.
+- **Por cliente:** la clave se guarda junto al `cliente_id` del token; nadie puede ver
+  la respuesta de otro adivinando su clave.
+- **Vigencia:** `LimpiezaIdempotenciaService` borra cada hora las claves de más de 24 h.
+- **En Flutter:** `ClaveIdempotencia` genera **una clave por intención**: se reutiliza
+  si la petición falló por timeout, 409 o 5xx (no se sabe si se hizo) y se descarta tras
+  una respuesta definitiva o si cambian los datos.
+- **Limitación (para discutir):** si el servidor se cae justo después del COMMIT y antes
+  de guardar la respuesta, la reserva queda `EnProceso`; a los 2 minutos se considera
+  abandonada y un reintento se volvería a procesar. La solución completa es guardar la
+  respuesta **en la misma transacción** que el movimiento (Unit of Work).
+
 ### Patrones complementarios presentes (para mencionar)
 DTO, Inyección de Dependencias, Middleware (*Chain of Responsibility* del pipeline
 de ASP.NET), Entidades ricas (DDD).
@@ -312,13 +354,15 @@ docker compose up -d
 ```
 
 Sin Docker: crear usuario `billetera` / `billetera123` y la base `billetera_digital`,
-luego ejecutar `database/01_esquema.sql`, `02_datos_prueba.sql` y `03_retiros_y_puntos.sql`.
+luego ejecutar en orden `database/01_esquema.sql`, `02_datos_prueba.sql`,
+`03_retiros_y_puntos.sql` y `04_idempotencia.sql`.
 
 Si tu base **ya existía** (Docker solo ejecuta los scripts la primera vez), aplica a
-mano el script de retiros y puntos (es idempotente):
+mano los scripts nuevos (ambos son idempotentes):
 
 ```bash
 docker exec -i billetera_postgres psql -U billetera -d billetera_digital < database/03_retiros_y_puntos.sql
+docker exec -i billetera_postgres psql -U billetera -d billetera_digital < database/04_idempotencia.sql
 ```
 
 Datos de prueba: `ana@demo.pe` y `luis@demo.pe`, contraseña **`Clave123!`**
@@ -368,6 +412,9 @@ flutter test
 6. En `psql`: `SELECT * FROM v_historial;` → ver las dos filas con la misma `referencia`.
 7. Intentar transferir más que el saldo → 422 generado en el **Dominio** y traducido
    por el **middleware**.
+8. Idempotencia en Swagger: enviar `POST /api/transacciones/transferencias` dos veces
+   con la misma `Idempotency-Key` → la segunda responde igual, con
+   `Idempotent-Replayed: true`, y el saldo bajó **una sola vez**.
 
 ---
 
@@ -387,7 +434,8 @@ flutter test
    del claim `billetera_id` del token.*
 4. ~~**Decorator:** envolver `IBilleteraRepository` con un `BilleteraRepositoryConCache`.~~
    *Resuelto: ver la sección 2.6 (decorador + invalidación con un observador).*
-5. **Idempotencia:** cabecera `Idempotency-Key` para evitar transferencias duplicadas
-   si el usuario pulsa dos veces.
+5. ~~**Idempotencia:** cabecera `Idempotency-Key` para evitar transferencias duplicadas
+   si el usuario pulsa dos veces.~~
+   *Resuelto: filtro `[Idempotente]` + tabla `idempotencia` (ver la sección 2.7).*
 6. **Pruebas de concurrencia:** lanzar 50 transferencias simultáneas y comprobar que el
    saldo nunca queda negativo (y qué pasa si se quita el `FOR UPDATE`).

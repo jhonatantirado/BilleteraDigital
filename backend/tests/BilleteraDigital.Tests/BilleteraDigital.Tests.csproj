@@ -13,5 +13,6 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\BilleteraDigital.Application\BilleteraDigital.Application.csproj" />
     <ProjectReference Include="..\..\src\BilleteraDigital.Infrastructure\BilleteraDigital.Infrastructure.csproj" />
+    <ProjectReference Include="..\..\src\BilleteraDigital.Api\BilleteraDigital.Api.csproj" />
   </ItemGroup>
 </Project>

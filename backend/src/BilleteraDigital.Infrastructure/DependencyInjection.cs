@@ -1,7 +1,9 @@
+using BilleteraDigital.Application.Idempotencia;
 using BilleteraDigital.Application.Interfaces;
 using BilleteraDigital.Application.Patrones.Observer;
 using BilleteraDigital.Domain.Interfaces;
 using BilleteraDigital.Infrastructure.Cache;
+using BilleteraDigital.Infrastructure.Mantenimiento;
 using BilleteraDigital.Infrastructure.Observadores;
 using BilleteraDigital.Infrastructure.Persistencia;
 using BilleteraDigital.Infrastructure.Repositorios;
@@ -38,6 +40,10 @@ public static class DependencyInjection
 
         services.AddScoped<ITransaccionRepository, TransaccionRepository>();
         services.AddScoped<IPuntosFidelidadRepository, PuntosFidelidadRepository>();
+
+        // IDEMPOTENCIA: almacén de claves + limpieza periódica de claves vencidas
+        services.AddScoped<IIdempotenciaRepository, IdempotenciaRepository>();
+        services.AddHostedService<LimpiezaIdempotenciaService>();
         services.AddScoped<IUnitOfWork, UnidadDeTrabajo>();
 
         services.AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>();

@@ -1,4 +1,5 @@
 using BilleteraDigital.Api.Configuracion;
+using BilleteraDigital.Api.Filtros;
 using BilleteraDigital.Application.DTOs;
 using BilleteraDigital.Application.Interfaces;
 using Microsoft.AspNetCore.Mvc;
@@ -15,6 +16,7 @@ public class TransaccionesController : ControllerBase
 
     /// <summary>Recarga saldo a una billetera (simula un abono desde tarjeta/banco).</summary>
     [HttpPost("recargas")]
+    [Idempotente]
     [ProducesResponseType(typeof(TransaccionResponse), StatusCodes.Status201Created)]
     public async Task<ActionResult<TransaccionResponse>> Recargar([FromBody] RecargaRequest request)
     {
@@ -25,6 +27,7 @@ public class TransaccionesController : ControllerBase
 
     /// <summary>Retira saldo de la billetera (simula un abono a cuenta bancaria).</summary>
     [HttpPost("retiros")]
+    [Idempotente]
     [ProducesResponseType(typeof(TransaccionResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
     public async Task<ActionResult<TransaccionResponse>> Retirar([FromBody] RetiroRequest request)
@@ -36,6 +39,7 @@ public class TransaccionesController : ControllerBase
 
     /// <summary>Transfiere dinero a otra billetera por número de cuenta.</summary>
     [HttpPost("transferencias")]
+    [Idempotente]
     [ProducesResponseType(typeof(TransferenciaResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]

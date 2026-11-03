@@ -1,6 +1,7 @@
 using System.Text;
 using System.Text.Json.Serialization;
 using BilleteraDigital.Api.Configuracion;
+using BilleteraDigital.Api.Filtros;
 using BilleteraDigital.Api.Middleware;
 using BilleteraDigital.Infrastructure;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -46,6 +47,9 @@ builder.Services.AddControllers()
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
 {
+    // Campo "Idempotency-Key" en recargas, retiros y transferencias
+    c.OperationFilter<CabeceraIdempotenciaSwagger>();
+
     // Botón "Authorize" en Swagger para pegar el token
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
@@ -70,7 +74,8 @@ builder.Services.AddSwaggerGen(c =>
 
 // CORS: permite que la app Flutter (web/emulador) consuma la API
 builder.Services.AddCors(o => o.AddPolicy("Flutter", p =>
-    p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()));
+    p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()
+     .WithExposedHeaders(IdempotenciaFilter.CabeceraRepetida)));   // visible para Flutter web
 
 var app = builder.Build();
 

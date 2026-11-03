@@ -59,10 +59,13 @@ class ApiClient {
     return _ejecutar(() => _http.get(uri, headers: _cabecerasActuales));
   }
 
-  Future<dynamic> post(String ruta, Map<String, dynamic> cuerpo) {
+  /// [cabeceras] permite añadir cabeceras propias de la petición
+  /// (p. ej. `Idempotency-Key` en las operaciones que mueven dinero).
+  Future<dynamic> post(String ruta, Map<String, dynamic> cuerpo,
+      {Map<String, String>? cabeceras}) {
     final uri = Uri.parse('$_baseUrl$ruta');
-    return _ejecutar(
-        () => _http.post(uri, headers: _cabecerasActuales, body: jsonEncode(cuerpo)));
+    return _ejecutar(() => _http.post(uri,
+        headers: {..._cabecerasActuales, ...?cabeceras}, body: jsonEncode(cuerpo)));
   }
 
   /// Centraliza timeout, decodificación JSON y traducción de errores HTTP.

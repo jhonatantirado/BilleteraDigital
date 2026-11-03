@@ -19,25 +19,27 @@ class BilleteraService {
       Comision.fromJson(await _api.get('/transacciones/comision',
           query: {'monto': monto.toStringAsFixed(2)}) as Map<String, dynamic>);
 
-  Future<Transaccion> recargar(String billeteraId, double monto) async =>
+  Future<Transaccion> recargar(String billeteraId, double monto,
+          {required String idempotencyKey}) async =>
       Transaccion.fromJson(await _api.post('/transacciones/recargas', {
         'billeteraId': billeteraId,
         'monto': _redondear(monto),
-      }) as Map<String, dynamic>);
+      }, cabeceras: _idempotencia(idempotencyKey)) as Map<String, dynamic>);
 
   Future<Transaccion> retirar(String billeteraId, double monto,
-          {String? descripcion}) async =>
+          {String? descripcion, required String idempotencyKey}) async =>
       Transaccion.fromJson(await _api.post('/transacciones/retiros', {
         'billeteraId': billeteraId,
         'monto': _redondear(monto),
         'descripcion': descripcion,
-      }) as Map<String, dynamic>);
+      }, cabeceras: _idempotencia(idempotencyKey)) as Map<String, dynamic>);
 
   Future<ResultadoTransferencia> transferir({
     required String billeteraOrigenId,
     required String numeroCuentaDestino,
     required double monto,
     String? descripcion,
+    required String idempotencyKey,
   }) async =>
       ResultadoTransferencia.fromJson(
           await _api.post('/transacciones/transferencias', {
@@ -45,7 +47,7 @@ class BilleteraService {
         'numeroCuentaDestino': numeroCuentaDestino,
         'monto': _redondear(monto),
         'descripcion': descripcion,
-      }) as Map<String, dynamic>);
+      }, cabeceras: _idempotencia(idempotencyKey)) as Map<String, dynamic>);
 
   Future<PaginaTransacciones> historial(
     String billeteraId, {
@@ -62,6 +64,8 @@ class BilleteraService {
         await _api.get('/billeteras/$billeteraId/transacciones', query: query);
     return PaginaTransacciones.fromJson(json as Map<String, dynamic>);
   }
+
+  static Map<String, String> _idempotencia(String clave) => {'Idempotency-Key': clave};
 
   // Evita enviar 10.000000001 por errores de coma flotante
   static double _redondear(double v) => double.parse(v.toStringAsFixed(2));
