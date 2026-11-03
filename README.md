@@ -1,7 +1,7 @@
 # Billetera Digital — Caso práctico de Diseño y Arquitectura de Software
 
 Aplicación completa (backend + base de datos + app móvil) para demostrar en clase
-**patrones arquitectónicos** (Capas, MVC, API REST) y **5 patrones de diseño**.
+**patrones arquitectónicos** (Capas, MVC, API REST) y **6 patrones de diseño**.
 
 | Componente | Tecnología |
 |---|---|
@@ -51,9 +51,11 @@ backend/src
 │   └── Patrones/    Strategy/, FactoryMethod/, Observer/
 ├── BilleteraDigital.Infrastructure  ← detalles técnicos; implementa las interfaces
 │   ├── Persistencia/ BilleteraDbContext (EF Core), UnidadDeTrabajo
-│   ├── Repositorios/ ClienteRepository, BilleteraRepository, TransaccionRepository
+│   ├── Repositorios/ ClienteRepository, BilleteraRepository, TransaccionRepository,
+│   │                 BilleteraRepositoryConCache (Decorator)
+│   ├── Cache/        CacheBilleteras (claves, tiempos de vida e invalidación)
 │   ├── Seguridad/    Pbkdf2PasswordHasher, JwtGeneradorToken
-│   └── Observadores/ AuditoriaArchivo, NotificacionEmail, AlertaFraude
+│   └── Observadores/ AuditoriaArchivo, NotificacionEmail, AlertaFraude, CacheBilleteras
 └── BilleteraDigital.Api             ← presentación (MVC) y raíz de composición
     ├── Controllers/  ClientesController, BilleterasController, TransaccionesController
     ├── Middleware/   ManejoErroresMiddleware (excepción → código HTTP)
@@ -105,7 +107,7 @@ Ejemplo de error (todas las capas lo producen igual gracias al middleware):
 
 ---
 
-## 2. Los 5 patrones de diseño
+## 2. Los 6 patrones de diseño
 
 | # | Patrón | Tipo (GoF / PoEAA) | Problema que resuelve aquí | Dónde verlo |
 |---|---|---|---|---|
@@ -114,6 +116,7 @@ Ejemplo de error (todas las capas lo producen igual gracias al middleware):
 | 3 | **Factory Method** | Creacional | Cada tipo de movimiento (recarga, enviada, recibida) se construye distinto | `Application/Patrones/FactoryMethod` |
 | 4 | **Observer** | Comportamiento | Tras una operación hay que auditar, notificar y vigilar fraude sin acoplar el servicio a esas tareas | `Application/Patrones/Observer`, `Infrastructure/Observadores` |
 | 5 | **Singleton** | Creacional | Un único cliente HTTP compartido por toda la app Flutter (y un único Subject en el backend) | `frontend/.../lib/core/api_client.dart`, registro `AddSingleton` |
+| 6 | **Decorator** | Estructural | Agregar caché a las consultas de billeteras sin modificar el repositorio ni los servicios | `Infrastructure/Repositorios/BilleteraRepositoryConCache.cs`, `Infrastructure/Cache` |
 
 ### 2.1 Repository + Unit of Work
 
@@ -202,11 +205,13 @@ sequenceDiagram
   participant A as AuditoriaArchivo
   participant E as NotificacionEmail
   participant F as AlertaFraude
+  participant C as CacheBilleteras
   S->>UoW: ConfirmarAsync() (COMMIT)
   S->>Sub: NotificarAsync(evento)
   Sub->>A: ActualizarAsync(evento)
   Sub->>E: ActualizarAsync(evento)
   Sub->>F: ActualizarAsync(evento)
+  Sub->>C: ActualizarAsync(evento) (invalida la caché)
 ```
 
 - Se notifica **después del COMMIT**: si la BD falla, nadie recibe un email falso.
@@ -226,6 +231,43 @@ En el backend el ciclo de vida *Singleton* lo administra el contenedor de inyecc
 de dependencias (`AddSingleton<ITransaccionSubject, TransaccionSubject>()`): buena
 ocasión para discutir **Singleton clásico vs. Singleton gestionado por DI** (este
 último es testeable y no usa estado global estático).
+
+### 2.6 Decorator — caché de billeteras
+
+```mermaid
+classDiagram
+  class IBilleteraRepository { <<interface>> }
+  IBilleteraRepository <|.. BilleteraRepository
+  IBilleteraRepository <|.. BilleteraRepositoryConCache
+  BilleteraRepositoryConCache o--> IBilleteraRepository : envuelve
+  BilleteraRepositoryConCache --> CacheBilleteras
+  CacheBilleterasObserver --> CacheBilleteras : invalida
+  BilleteraService --> IBilleteraRepository
+```
+
+`BilleteraRepositoryConCache` implementa la **misma interfaz** que el repositorio real
+y lo envuelve: primero busca en la caché (`IMemoryCache`) y, si no encuentra, delega
+en `BilleteraRepository`. `BilleteraService` no cambió; el único cambio está en
+`DependencyInjection.cs`, donde quien pide `IBilleteraRepository` recibe el decorador.
+
+| Método | ¿Caché? | Motivo |
+|---|---|---|
+| `ObtenerPorIdAsync` / `PorNumeroCuentaAsync` / `PorClienteIdAsync` | ✅ | Lecturas frecuentes (vista previa de comisión, búsqueda del destinatario) |
+| `ObtenerPorIdParaActualizarAsync` | ❌ | Debe tomar el bloqueo `FOR UPDATE` y leer el saldo real |
+| `ExisteNumeroCuentaAsync` | ❌ | Cachear un "no existe" podría duplicar números de cuenta |
+| `AgregarAsync` | ❌ | Es una escritura |
+
+- **Saldo siempre fresco:** la billetera completa (con saldo) se guarda una sola vez,
+  por Id; los índices por número de cuenta y por cliente solo guardan el Id, que no
+  cambia. Así, para invalidar basta con borrar una entrada.
+- **Invalidación con Observer:** `CacheBilleterasObserver` borra de la caché las
+  billeteras de origen y destino **después del COMMIT** (el evento ahora incluye sus Id).
+  Además, cada entrada vence a los 30 s como red de seguridad.
+- **Para verlo en clase:** sube a `Debug` el nivel de log de
+  `BilleteraDigital.Infrastructure.Repositorios` en `appsettings.Development.json` y
+  la consola mostrará `Caché HIT` / `Caché MISS` en cada consulta.
+- **Discusión:** Decorator vs. Proxy (misma estructura, distinta intención); con varias
+  instancias de la API habría que usar `IDistributedCache` (p. ej. Redis).
 
 ### Patrones complementarios presentes (para mencionar)
 DTO, Inyección de Dependencias, Middleware (*Chain of Responsibility* del pipeline
@@ -307,7 +349,8 @@ flutter test
    *Resuelto: `JwtGeneradorToken` emite el token en login/registro, todos los endpoints
    exigen autenticación (salvo registro y login) y la billetera de origen se toma
    del claim `billetera_id` del token.*
-4. **Decorator:** envolver `IBilleteraRepository` con un `BilleteraRepositoryConCache`.
+4. ~~**Decorator:** envolver `IBilleteraRepository` con un `BilleteraRepositoryConCache`.~~
+   *Resuelto: ver la sección 2.6 (decorador + invalidación con un observador).*
 5. **Idempotencia:** cabecera `Idempotency-Key` para evitar transferencias duplicadas
    si el usuario pulsa dos veces.
 6. **Pruebas de concurrencia:** lanzar 50 transferencias simultáneas y comprobar que el
