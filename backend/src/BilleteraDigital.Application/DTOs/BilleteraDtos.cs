@@ -7,5 +7,8 @@ public record BilleteraResponse(
     string Moneda,
     DateTime FechaCreacion);
 
-/// <summary>Datos públicos mínimos del destinatario (para confirmar antes de transferir).</summary>
-public record DestinatarioResponse(string NumeroCuenta, string NombreTitular);
+/// <summary>
+/// Datos públicos mínimos del destinatario (para confirmar antes de transferir).
+/// Si se buscó por celular, NO se devuelve el número de cuenta, solo el celular enmascarado.
+/// </summary>
+public record DestinatarioResponse(string? NumeroCuenta, string NombreTitular, string? Telefono = null);

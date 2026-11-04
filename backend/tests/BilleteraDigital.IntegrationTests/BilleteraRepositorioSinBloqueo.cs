@@ -36,6 +36,7 @@ public class BilleteraRepositorioSinBloqueo : IBilleteraRepository
     public Task<Billetera?> ObtenerPorIdAsync(Guid id) => _real.ObtenerPorIdAsync(id);
     public Task<Billetera?> ObtenerPorClienteIdAsync(Guid clienteId) => _real.ObtenerPorClienteIdAsync(clienteId);
     public Task<Billetera?> ObtenerPorNumeroCuentaAsync(string numeroCuenta) => _real.ObtenerPorNumeroCuentaAsync(numeroCuenta);
+    public Task<Billetera?> ObtenerPorTelefonoAsync(string telefono) => _real.ObtenerPorTelefonoAsync(telefono);
     public Task<bool> ExisteNumeroCuentaAsync(string numeroCuenta) => _real.ExisteNumeroCuentaAsync(numeroCuenta);
     public Task AgregarAsync(Billetera billetera) => _real.AgregarAsync(billetera);
 }

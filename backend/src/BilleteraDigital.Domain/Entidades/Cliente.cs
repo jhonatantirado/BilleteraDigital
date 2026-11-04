@@ -16,6 +16,9 @@ public class Cliente
     public string PasswordHash { get; private set; } = string.Empty;
     public DateTime FechaRegistro { get; private set; }
 
+    /// <summary>Solo los celulares verificados con código pueden recibir transferencias por celular.</summary>
+    public bool TelefonoVerificado { get; private set; }
+
     public Billetera? Billetera { get; private set; }
 
     // Requerido por EF Core
@@ -31,6 +34,9 @@ public class Cliente
         if (string.IsNullOrWhiteSpace(email) || !email.Contains('@'))
             throw new Excepciones.ReglaDeNegocioException("El email no es válido.");
 
+        // VALUE OBJECT: valida y normaliza el celular (obligatorio, formato +51 9XXXXXXXX)
+        var celular = ValueObjects.Telefono.Crear(telefono);
+
         return new Cliente
         {
             Id = Guid.NewGuid(),
@@ -38,7 +44,8 @@ public class Cliente
             Apellidos = apellidos.Trim(),
             Dni = dni,
             Email = email.Trim().ToLowerInvariant(),
-            Telefono = telefono?.Trim() ?? string.Empty,
+            Telefono = celular.Valor,
+            TelefonoVerificado = false,
             PasswordHash = passwordHash,
             FechaRegistro = DateTime.UtcNow
         };
@@ -47,4 +54,6 @@ public class Cliente
     public string NombreCompleto => $"{Nombres} {Apellidos}";
 
     public void AsignarBilletera(Billetera billetera) => Billetera = billetera;
+
+    public void MarcarTelefonoVerificado() => TelefonoVerificado = true;
 }

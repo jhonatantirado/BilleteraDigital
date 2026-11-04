@@ -24,4 +24,8 @@ public record ClienteResponse(
     string Email,
     string Telefono,
     DateTime FechaRegistro,
-    BilleteraResponse Billetera);
+    BilleteraResponse Billetera,
+    bool TelefonoVerificado);
+
+/// <summary>Código de 6 dígitos recibido por SMS.</summary>
+public record VerificarTelefonoRequest(string Codigo);

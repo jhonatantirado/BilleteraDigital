@@ -8,6 +8,7 @@ using BilleteraDigital.Domain.Entidades;
 using BilleteraDigital.Domain.Enums;
 using BilleteraDigital.Domain.Excepciones;
 using BilleteraDigital.Domain.Interfaces;
+using BilleteraDigital.Domain.ValueObjects;
 
 namespace BilleteraDigital.Application.Servicios;
 
@@ -62,8 +63,40 @@ public class BilleteraService : IBilleteraService
                 ?? throw new NoEncontradoException("No existe una billetera con ese número de cuenta.");
         var cliente = await _clientes.ObtenerPorIdAsync(b.ClienteId);
         // Solo se expone nombre + inicial del apellido (privacidad)
-        var nombre = cliente is null ? "—" : $"{cliente.Nombres} {cliente.Apellidos[..1]}.";
-        return new DestinatarioResponse(b.NumeroCuenta, nombre);
+        return new DestinatarioResponse(b.NumeroCuenta, Mapeador.NombrePublico(cliente));
+    }
+
+    public async Task<DestinatarioResponse> BuscarDestinatarioPorTelefonoAsync(string telefono)
+    {
+        var celular = Telefono.Crear(telefono);
+        var b = await _billeteras.ObtenerPorTelefonoAsync(celular.Valor)
+                ?? throw new NoEncontradoException(SinBilleteraParaCelular);
+        var cliente = await _clientes.ObtenerPorIdAsync(b.ClienteId);
+        // Se busca por celular: NO se revela el número de cuenta
+        return new DestinatarioResponse(null, Mapeador.NombrePublico(cliente), celular.Enmascarado);
+    }
+
+    // Mismo mensaje para "no existe" y "no verificado": no da pistas a quien prueba números
+    private const string SinBilleteraParaCelular = "No encontramos una billetera asociada a ese celular.";
+
+    /// <summary>
+    /// Resuelve la billetera destino a partir de UNO de los dos datos: cuenta o celular.
+    /// Desde aquí, la transferencia es idéntica en ambos casos.
+    /// </summary>
+    private async Task<(Billetera Destino, Telefono? Celular)> ResolverDestinoAsync(TransferenciaRequest r)
+    {
+        var porCuenta = !string.IsNullOrWhiteSpace(r.NumeroCuentaDestino);
+        var porCelular = !string.IsNullOrWhiteSpace(r.TelefonoDestino);
+        if (porCuenta == porCelular)
+            throw new ArgumentException("Indica el destino con el número de cuenta o con el celular (solo uno de los dos).");
+
+        if (porCuenta)
+            return (await _billeteras.ObtenerPorNumeroCuentaAsync(r.NumeroCuentaDestino!.Trim())
+                    ?? throw new NoEncontradoException("La cuenta destino no existe."), null);
+
+        var celular = Telefono.Crear(r.TelefonoDestino);
+        return (await _billeteras.ObtenerPorTelefonoAsync(celular.Valor)
+                ?? throw new NoEncontradoException(SinBilleteraParaCelular), celular);
     }
 
     public async Task<ComisionResponse> CalcularComisionAsync(Guid billeteraOrigenId, decimal monto)
@@ -160,9 +193,13 @@ public class BilleteraService : IBilleteraService
     {
         ValidarMonto(r.Monto, MontoMinimoTransferencia, MontoMaximoTransferencia);
 
-        // Lectura previa SIN bloqueo, solo para conocer el Id del destino
-        var destinoInfo = await _billeteras.ObtenerPorNumeroCuentaAsync(r.NumeroCuentaDestino?.Trim() ?? "")
-                          ?? throw new NoEncontradoException("La cuenta destino no existe.");
+        // Lectura previa SIN bloqueo, solo para conocer el Id del destino (por cuenta o por celular)
+        var (destinoInfo, celular) = await ResolverDestinoAsync(r);
+
+        // Por celular, la descripción por defecto no revela la cuenta del destinatario
+        var descripcion = string.IsNullOrWhiteSpace(r.Descripcion) && celular is not null
+            ? $"Transferencia a celular {celular.Enmascarado}"
+            : r.Descripcion;
         if (destinoInfo.Id == r.BilleteraOrigenId)
             throw new ReglaDeNegocioException("No puede transferirse dinero a su propia billetera.");
 
@@ -195,7 +232,7 @@ public class BilleteraService : IBilleteraService
 
             // FACTORY METHOD: dos movimientos con la misma referencia
             enviada = _creadores.Para(TipoTransaccion.TransferenciaEnviada)
-                .Registrar(new DatosTransaccion(origen, r.Monto, comision, referencia, destino, r.Descripcion));
+                .Registrar(new DatosTransaccion(origen, r.Monto, comision, referencia, destino, descripcion));
             var recibida = _creadores.Para(TipoTransaccion.TransferenciaRecibida)
                 .Registrar(new DatosTransaccion(destino, r.Monto, 0m, referencia, origen, r.Descripcion));
 
@@ -220,7 +257,9 @@ public class BilleteraService : IBilleteraService
             origen.Id, destino.Id));
 
         return new TransferenciaResponse(referencia, r.Monto, comision, estrategia, origen.Saldo,
-            destino.NumeroCuenta, receptor?.NombreCompleto ?? "", enviada.Fecha);
+            celular is null ? destino.NumeroCuenta : null,
+            celular is null ? receptor?.NombreCompleto ?? "" : Mapeador.NombrePublico(receptor),
+            enviada.Fecha, celular?.Enmascarado);
     }
 
     // ---------------------------------------------------------------- HISTORIAL

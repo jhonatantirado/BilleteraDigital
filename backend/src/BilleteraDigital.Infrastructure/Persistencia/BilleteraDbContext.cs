@@ -20,6 +20,7 @@ public class BilleteraDbContext : DbContext
     public DbSet<Transaccion> Transacciones => Set<Transaccion>();
     public DbSet<MovimientoPuntos> MovimientosPuntos => Set<MovimientoPuntos>();
     public DbSet<RegistroIdempotencia> Idempotencia => Set<RegistroIdempotencia>();
+    public DbSet<VerificacionTelefono> VerificacionesTelefono => Set<VerificacionTelefono>();
 
     protected override void OnModelCreating(ModelBuilder mb)
     {
@@ -33,6 +34,9 @@ public class BilleteraDbContext : DbContext
             e.Property(c => c.Dni).HasColumnName("dni").HasMaxLength(8).IsRequired();
             e.Property(c => c.Email).HasColumnName("email").HasMaxLength(120).IsRequired();
             e.Property(c => c.Telefono).HasColumnName("telefono").HasMaxLength(15);
+            e.Property(c => c.TelefonoVerificado).HasColumnName("telefono_verificado");
+            // Único solo entre los VERIFICADOS (ver database/05_telefono.sql)
+            e.HasIndex(c => c.Telefono).IsUnique().HasFilter("telefono_verificado");
             e.Property(c => c.PasswordHash).HasColumnName("password_hash").IsRequired();
             e.Property(c => c.FechaRegistro).HasColumnName("fecha_registro");
             e.HasIndex(c => c.Dni).IsUnique();
@@ -96,6 +100,18 @@ public class BilleteraDbContext : DbContext
             e.HasOne<Cliente>().WithMany().HasForeignKey(p => p.ClienteId);
             e.HasIndex(p => p.Referencia).IsUnique();       // idempotencia
             e.HasIndex(p => new { p.ClienteId, p.Fecha });
+        });
+
+        mb.Entity<VerificacionTelefono>(e =>
+        {
+            e.ToTable("verificaciones_telefono");
+            e.HasKey(v => v.ClienteId);
+            e.Property(v => v.ClienteId).HasColumnName("cliente_id");
+            e.Property(v => v.CodigoHash).HasColumnName("codigo_hash").HasMaxLength(64);
+            e.Property(v => v.Expira).HasColumnName("expira");
+            e.Property(v => v.Intentos).HasColumnName("intentos");
+            e.Property(v => v.UltimoEnvio).HasColumnName("ultimo_envio");
+            e.HasOne<Cliente>().WithOne().HasForeignKey<VerificacionTelefono>(v => v.ClienteId);
         });
 
         mb.Entity<RegistroIdempotencia>(e =>

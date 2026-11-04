@@ -3,6 +3,7 @@ using BilleteraDigital.Application.DTOs;
 using BilleteraDigital.Application.Interfaces;
 using BilleteraDigital.Domain.Enums;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 
 namespace BilleteraDigital.Api.Controllers;
 
@@ -26,9 +27,23 @@ public class BilleterasController : ControllerBase
 
     /// <summary>Busca al titular de una cuenta (para confirmar antes de transferir).</summary>
     [HttpGet("cuenta/{numeroCuenta}")]
+    [EnableRateLimiting(LimitesDeUso.BusquedaDestinatario)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
     [ProducesResponseType(typeof(DestinatarioResponse), StatusCodes.Status200OK)]
     public async Task<ActionResult<DestinatarioResponse>> BuscarPorCuenta(string numeroCuenta) =>
         Ok(await _servicio.BuscarDestinatarioAsync(numeroCuenta));
+
+    /// <summary>
+    /// Busca al titular de un celular VERIFICADO (para confirmar antes de transferir).
+    /// Acepta "987654321", "987 654 321" o "+51987654321". No revela el número de cuenta.
+    /// </summary>
+    [HttpGet("telefono/{telefono}")]
+    [EnableRateLimiting(LimitesDeUso.BusquedaDestinatario)]
+    [ProducesResponseType(typeof(DestinatarioResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    [ProducesResponseType(StatusCodes.Status429TooManyRequests)]
+    public async Task<ActionResult<DestinatarioResponse>> BuscarPorTelefono(string telefono) =>
+        Ok(await _servicio.BuscarDestinatarioPorTelefonoAsync(telefono));
 
     /// <summary>Historial de transacciones paginado. Filtro opcional por tipo.</summary>
     [HttpGet("{id:guid}/transacciones")]

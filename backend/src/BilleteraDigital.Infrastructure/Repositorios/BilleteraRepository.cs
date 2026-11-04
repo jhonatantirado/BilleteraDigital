@@ -21,6 +21,10 @@ public class BilleteraRepository : IBilleteraRepository
     public Task<Billetera?> ObtenerPorNumeroCuentaAsync(string numeroCuenta) =>
         _ctx.Billeteras.AsNoTracking().FirstOrDefaultAsync(b => b.NumeroCuenta == numeroCuenta);
 
+    public Task<Billetera?> ObtenerPorTelefonoAsync(string telefono) =>
+        _ctx.Billeteras.AsNoTracking()
+            .FirstOrDefaultAsync(b => b.Cliente!.Telefono == telefono && b.Cliente.TelefonoVerificado);
+
     public async Task<Billetera?> ObtenerPorIdParaActualizarAsync(Guid id)
     {
         // Bloqueo pesimista a nivel de fila en PostgreSQL.

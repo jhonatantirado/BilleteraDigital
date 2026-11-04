@@ -11,7 +11,11 @@ internal static class Mapeador
 
     public static ClienteResponse AClienteResponse(Cliente c, Billetera b) =>
         new(c.Id, c.Nombres, c.Apellidos, c.Dni, c.Email, c.Telefono, c.FechaRegistro,
-            ABilleteraResponse(b));
+            ABilleteraResponse(b), c.TelefonoVerificado);
+
+    /// <summary>Nombre que ve quien busca a un destinatario: "Luis T." (privacidad).</summary>
+    public static string NombrePublico(Cliente? c) =>
+        c is null ? "—" : $"{c.Nombres} {(c.Apellidos.Length > 0 ? c.Apellidos[..1] + "." : "")}".Trim();
 
     public static TransaccionResponse ATransaccionResponse(Transaccion t) =>
         new(t.Id,

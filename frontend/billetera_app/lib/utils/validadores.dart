@@ -21,6 +21,23 @@ class Validadores {
       ? null
       : 'La cuenta tiene 10 dígitos';
 
+  /// Celular peruano: 9 dígitos que empiezan con 9. Acepta espacios, guiones
+  /// y el prefijo +51 ("987 654 321", "+51 987654321").
+  static String? celular(String? v) =>
+      normalizarCelular(v ?? '') == null
+          ? 'Ingresa un celular de 9 dígitos que empiece con 9'
+          : null;
+
+  /// "+51 987-654-321" → "987654321"; null si no es un celular válido.
+  static String? normalizarCelular(String v) {
+    var d = v.replaceAll(RegExp(r'\D'), '');
+    if (d.length == 11 && d.startsWith('51')) d = d.substring(2);
+    return RegExp(r'^9\d{8}$').hasMatch(d) ? d : null;
+  }
+
+  static String? codigoVerificacion(String? v) =>
+      RegExp(r'^\d{6}$').hasMatch(v?.trim() ?? '') ? null : 'El código tiene 6 dígitos';
+
   static String? monto(String? v, {double minimo = 1, double maximo = 10000}) {
     final m = double.tryParse((v ?? '').replaceAll(',', '.'));
     if (m == null) return 'Ingrese un monto válido';

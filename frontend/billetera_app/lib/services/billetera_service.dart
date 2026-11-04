@@ -15,6 +15,11 @@ class BilleteraService {
       Destinatario.fromJson(await _api.get('/billeteras/cuenta/$numeroCuenta')
           as Map<String, dynamic>);
 
+  /// [celular] de 9 dígitos. Solo encuentra celulares VERIFICADOS.
+  Future<Destinatario> buscarDestinatarioPorCelular(String celular) async =>
+      Destinatario.fromJson(await _api.get('/billeteras/telefono/$celular')
+          as Map<String, dynamic>);
+
   Future<Comision> calcularComision(double monto) async =>
       Comision.fromJson(await _api.get('/transacciones/comision',
           query: {'monto': monto.toStringAsFixed(2)}) as Map<String, dynamic>);
@@ -36,7 +41,8 @@ class BilleteraService {
 
   Future<ResultadoTransferencia> transferir({
     required String billeteraOrigenId,
-    required String numeroCuentaDestino,
+    String? numeroCuentaDestino,
+    String? telefonoDestino,          // uno de los dos: cuenta o celular
     required double monto,
     String? descripcion,
     required String idempotencyKey,
@@ -45,6 +51,7 @@ class BilleteraService {
           await _api.post('/transacciones/transferencias', {
         'billeteraOrigenId': billeteraOrigenId,
         'numeroCuentaDestino': numeroCuentaDestino,
+        'telefonoDestino': telefonoDestino,
         'monto': _redondear(monto),
         'descripcion': descripcion,
       }, cabeceras: _idempotencia(idempotencyKey)) as Map<String, dynamic>);

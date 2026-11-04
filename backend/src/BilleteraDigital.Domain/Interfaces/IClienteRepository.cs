@@ -12,5 +12,11 @@ public interface IClienteRepository
     Task<Cliente?> ObtenerPorEmailAsync(string email);
     Task<bool> ExisteDniAsync(string dni);
     Task<bool> ExisteEmailAsync(string email);
+
+    /// <summary>¿Algún OTRO cliente ya verificó este celular? (formato E.164)</summary>
+    Task<bool> ExisteTelefonoVerificadoAsync(string telefono, Guid? exceptoClienteId = null);
+
+    /// <summary>Cliente con seguimiento de cambios (para modificarlo y guardar).</summary>
+    Task<Cliente?> ObtenerPorIdParaActualizarAsync(Guid id);
     Task AgregarAsync(Cliente cliente);
 }

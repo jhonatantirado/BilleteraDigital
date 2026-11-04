@@ -32,6 +32,16 @@ class ClienteService {
     return _iniciarSesion(json);
   }
 
+  /// Pide un código nuevo por SMS (simulado: aparece en la consola de la API).
+  Future<void> enviarCodigoTelefono(String clienteId) async =>
+      _api.post('/clientes/$clienteId/telefono/codigo', {});
+
+  /// Verifica el celular con el código de 6 dígitos; devuelve el cliente actualizado.
+  Future<Cliente> verificarTelefono(String clienteId, String codigo) async =>
+      Cliente.fromJson(await _api.post(
+              '/clientes/$clienteId/telefono/verificar', {'codigo': codigo})
+          as Map<String, dynamic>);
+
   Future<Puntos> puntos(String clienteId) async => Puntos.fromJson(
       await _api.get('/clientes/$clienteId/puntos') as Map<String, dynamic>);
 

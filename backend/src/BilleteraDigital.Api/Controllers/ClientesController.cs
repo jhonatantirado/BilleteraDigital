@@ -17,7 +17,13 @@ namespace BilleteraDigital.Api.Controllers;
 public class ClientesController : ControllerBase
 {
     private readonly IClienteService _servicio;
-    public ClientesController(IClienteService servicio) => _servicio = servicio;
+    private readonly IVerificacionTelefonoService _verificacion;
+
+    public ClientesController(IClienteService servicio, IVerificacionTelefonoService verificacion)
+    {
+        _servicio = servicio;
+        _verificacion = verificacion;
+    }
 
     /// <summary>Registra un cliente, le abre una billetera en soles y devuelve su token.</summary>
     [AllowAnonymous]
@@ -58,5 +64,30 @@ public class ClientesController : ControllerBase
     {
         User.ExigirCliente(id);
         return Ok(await _servicio.ObtenerPuntosAsync(id));
+    }
+
+    /// <summary>
+    /// Envía (o reenvía) el código de verificación por SMS. En el curso el SMS es
+    /// simulado: el código aparece en la consola de la API y en logs/sms_simulados.log.
+    /// </summary>
+    [HttpPost("{id:guid}/telefono/codigo")]
+    [ProducesResponseType(StatusCodes.Status202Accepted)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<IActionResult> EnviarCodigo(Guid id)
+    {
+        User.ExigirCliente(id);
+        await _verificacion.EnviarCodigoAsync(id);
+        return Accepted();
+    }
+
+    /// <summary>Verifica el celular con el código de 6 dígitos recibido por SMS.</summary>
+    [HttpPost("{id:guid}/telefono/verificar")]
+    [ProducesResponseType(typeof(ClienteResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status409Conflict)]
+    [ProducesResponseType(StatusCodes.Status422UnprocessableEntity)]
+    public async Task<ActionResult<ClienteResponse>> VerificarTelefono(Guid id, [FromBody] VerificarTelefonoRequest request)
+    {
+        User.ExigirCliente(id);
+        return Ok(await _verificacion.VerificarAsync(id, request.Codigo));
     }
 }

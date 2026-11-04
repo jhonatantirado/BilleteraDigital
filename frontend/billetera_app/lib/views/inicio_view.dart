@@ -7,6 +7,7 @@ import 'historial_view.dart';
 import 'recarga_view.dart';
 import 'retiro_view.dart';
 import 'transferencia_view.dart';
+import 'verificar_telefono_view.dart';
 import 'widgets/tarjeta_saldo.dart';
 import 'widgets/transaccion_tile.dart';
 
@@ -64,6 +65,20 @@ class _InicioContenido extends StatelessWidget {
           padding: const EdgeInsets.all(16),
           children: [
             TarjetaSaldo(cliente: cliente),
+            if (!cliente.telefonoVerificado) ...[
+              const SizedBox(height: 12),
+              Card(
+                color: Theme.of(context).colorScheme.tertiaryContainer,
+                child: ListTile(
+                  leading: const Icon(Icons.sms_outlined),
+                  title: const Text('Verifica tu celular'),
+                  subtitle: const Text(
+                      'Así podrán transferirte usando tu número de celular.'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () => _abrir(context, const VerificarTelefonoView()),
+                ),
+              ),
+            ],
             const SizedBox(height: 12),
             _TarjetaPuntos(total: sesion.puntos?.total),
             const SizedBox(height: 20),

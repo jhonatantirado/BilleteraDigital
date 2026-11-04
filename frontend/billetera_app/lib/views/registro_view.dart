@@ -48,7 +48,8 @@ class _RegistroViewState extends State<RegistroView> {
       // La sesión ya está iniciada: volvemos a la raíz, que mostrará InicioView
       Navigator.of(context).popUntil((r) => r.isFirst);
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-          content: Text('¡Cuenta creada! Tu billetera ya está activa.')));
+          content: Text('¡Cuenta creada! Te enviamos un código por SMS '
+              'para verificar tu celular.')));
     }
   }
 
@@ -91,8 +92,8 @@ class _RegistroViewState extends State<RegistroView> {
                       teclado: TextInputType.number, max: 8),
                   _campo(_email, 'Email', Icons.email, Validadores.email,
                       teclado: TextInputType.emailAddress),
-                  _campo(_telefono, 'Teléfono (opcional)', Icons.phone,
-                      (_) => null,
+                  _campo(_telefono, 'Celular', Icons.phone_android,
+                      Validadores.celular,
                       teclado: TextInputType.phone, max: 15),
                   _campo(_password, 'Contraseña', Icons.lock,
                       Validadores.password,

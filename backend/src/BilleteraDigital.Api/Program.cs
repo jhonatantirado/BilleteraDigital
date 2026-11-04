@@ -72,6 +72,9 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Límite de búsquedas de destinatario (429 al pasarse)
+builder.Services.AddLimitesDeUso();
+
 // CORS: permite que la app Flutter (web/emulador) consuma la API
 builder.Services.AddCors(o => o.AddPolicy("Flutter", p =>
     p.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod()
@@ -88,6 +91,7 @@ app.UseSwaggerUI();
 app.UseCors("Flutter");
 app.UseAuthentication();   // lee y valida el token "Authorization: Bearer ..."
 app.UseAuthorization();    // aplica [Authorize] / política por defecto
+app.UseRateLimiter();      // después de la autenticación: el límite es por usuario
 app.MapControllers();
 app.MapGet("/", () => Results.Redirect("/swagger")).AllowAnonymous().ExcludeFromDescription();
 

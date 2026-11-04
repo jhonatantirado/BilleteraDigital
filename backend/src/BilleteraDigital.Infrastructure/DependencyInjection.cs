@@ -4,6 +4,7 @@ using BilleteraDigital.Application.Patrones.Observer;
 using BilleteraDigital.Domain.Interfaces;
 using BilleteraDigital.Infrastructure.Cache;
 using BilleteraDigital.Infrastructure.Mantenimiento;
+using BilleteraDigital.Infrastructure.Mensajeria;
 using BilleteraDigital.Infrastructure.Observadores;
 using BilleteraDigital.Infrastructure.Persistencia;
 using BilleteraDigital.Infrastructure.Repositorios;
@@ -40,6 +41,10 @@ public static class DependencyInjection
 
         services.AddScoped<ITransaccionRepository, TransaccionRepository>();
         services.AddScoped<IPuntosFidelidadRepository, PuntosFidelidadRepository>();
+
+        // CELULAR: verificación con código (SMS simulado)
+        services.AddScoped<IVerificacionTelefonoRepository, VerificacionTelefonoRepository>();
+        services.AddSingleton<IEnviadorSms, SmsSimuladoEnviador>();
 
         // IDEMPOTENCIA: almacén de claves + limpieza periódica de claves vencidas
         services.AddScoped<IIdempotenciaRepository, IdempotenciaRepository>();

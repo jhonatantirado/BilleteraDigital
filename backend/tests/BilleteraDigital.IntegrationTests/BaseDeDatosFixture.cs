@@ -76,22 +76,29 @@ public class BaseDeDatosFixture : IAsyncLifetime
     }
 
     /// <summary>Crea un cliente con su billetera y el saldo indicado. Devuelve la billetera.</summary>
-    public async Task<Billetera> CrearBilleteraAsync(decimal saldo)
+    public async Task<Billetera> CrearBilleteraAsync(decimal saldo) =>
+        (await CrearClienteConCelularAsync(saldo, celularVerificado: false)).Billetera;
+
+    /// <summary>Igual que <see cref="CrearBilleteraAsync"/>, y devuelve también su celular (9 dígitos).</summary>
+    public async Task<(Billetera Billetera, string Celular)> CrearClienteConCelularAsync(
+        decimal saldo, bool celularVerificado)
     {
         var n = Interlocked.Increment(ref _secuencia);
         var sufijo = $"{Random.Shared.Next(0, 10_000):D4}{n:D4}";        // 8 dígitos únicos
+        var celular = "9" + sufijo;                                     // celular único y válido
 
         await using var scope = Servicios.CreateAsyncScope();
         var sp = scope.ServiceProvider;
 
-        var cliente = Cliente.Crear("Prueba", $"Concurrencia {n}", sufijo, $"prueba{sufijo}@test.pe", "", "hash");
+        var cliente = Cliente.Crear("Prueba", $"Concurrencia {n}", sufijo, $"prueba{sufijo}@test.pe", celular, "hash");
+        if (celularVerificado) cliente.MarcarTelefonoVerificado();
         var billetera = Billetera.Abrir(cliente.Id, "28" + sufijo);
         if (saldo > 0) billetera.Acreditar(saldo);
 
         await sp.GetRequiredService<IClienteRepository>().AgregarAsync(cliente);
         await sp.GetRequiredService<IBilleteraRepository>().AgregarAsync(billetera);
         await sp.GetRequiredService<IUnitOfWork>().GuardarCambiosAsync();
-        return billetera;
+        return (billetera, celular);
     }
 
     /// <summary>Saldo leído directamente de la BD (sin caché).</summary>

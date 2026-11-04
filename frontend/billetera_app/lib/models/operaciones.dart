@@ -15,14 +15,26 @@ class Comision {
       );
 }
 
+/// Cómo se busca al destinatario de una transferencia.
+enum ModoBusqueda { celular, cuenta }
+
 class Destinatario {
-  final String numeroCuenta;
+  /// Solo viene si se buscó por número de cuenta.
+  final String? numeroCuenta;
   final String nombreTitular;
 
-  const Destinatario(this.numeroCuenta, this.nombreTitular);
+  /// Celular enmascarado ("*** *** 678"); solo viene si se buscó por celular.
+  final String? telefono;
 
-  factory Destinatario.fromJson(Map<String, dynamic> j) =>
-      Destinatario(j['numeroCuenta'] as String, j['nombreTitular'] as String);
+  const Destinatario(this.numeroCuenta, this.nombreTitular, [this.telefono]);
+
+  bool get porCelular => numeroCuenta == null;
+
+  factory Destinatario.fromJson(Map<String, dynamic> j) => Destinatario(
+        j['numeroCuenta'] as String?,
+        j['nombreTitular'] as String,
+        j['telefono'] as String?,
+      );
 }
 
 class ResultadoTransferencia {
@@ -31,7 +43,8 @@ class ResultadoTransferencia {
   final double comision;
   final String estrategiaComision;
   final double saldoActual;
-  final String cuentaDestino;
+  final String? cuentaDestino;      // null si se transfirió por celular
+  final String? telefonoDestino;    // celular enmascarado, si se transfirió por celular
   final String nombreDestinatario;
   final DateTime fecha;
 
@@ -42,6 +55,7 @@ class ResultadoTransferencia {
     required this.estrategiaComision,
     required this.saldoActual,
     required this.cuentaDestino,
+    this.telefonoDestino,
     required this.nombreDestinatario,
     required this.fecha,
   });
@@ -53,7 +67,8 @@ class ResultadoTransferencia {
         comision: (j['comision'] as num).toDouble(),
         estrategiaComision: j['estrategiaComision'] as String,
         saldoActual: (j['saldoActual'] as num).toDouble(),
-        cuentaDestino: j['cuentaDestino'] as String,
+        cuentaDestino: j['cuentaDestino'] as String?,
+        telefonoDestino: j['telefonoDestino'] as String?,
         nombreDestinatario: j['nombreDestinatario'] as String,
         fecha: DateTime.parse(j['fecha'] as String).toLocal(),
       );

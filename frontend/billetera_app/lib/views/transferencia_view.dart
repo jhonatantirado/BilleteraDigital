@@ -18,7 +18,8 @@ class TransferenciaView extends StatefulWidget {
 
 class _TransferenciaViewState extends State<TransferenciaView> {
   final _form = GlobalKey<FormState>();
-  final _cuenta = TextEditingController();
+  final _cuenta = TextEditingController();   // número de cuenta o celular, según el modo
+  ModoBusqueda _modo = ModoBusqueda.celular;  // como Yape/Plin: por celular por defecto
   final _monto = TextEditingController();
   final _descripcion = TextEditingController();
 
@@ -37,14 +38,32 @@ class _TransferenciaViewState extends State<TransferenciaView> {
     super.dispose();
   }
 
+  bool get _porCelular => _modo == ModoBusqueda.celular;
+
+  String? _validarDestino(String? v) =>
+      _porCelular ? Validadores.celular(v) : Validadores.cuenta(v);
+
   Future<void> _verificarCuenta() async {
-    if (Validadores.cuenta(_cuenta.text) != null) {
+    if (_validarDestino(_cuenta.text) != null) {
       _form.currentState!.validate();
       return;
     }
     FocusScope.of(context).unfocus();
-    await context.read<OperacionesController>().buscarDestinatario(_cuenta.text);
+    await context
+        .read<OperacionesController>()
+        .buscarDestinatario(_cuenta.text, modo: _modo);
   }
+
+  void _cambiarModo(ModoBusqueda modo) {
+    setState(() => _modo = modo);
+    _cuenta.clear();
+    context.read<OperacionesController>().reiniciar();
+  }
+
+  /// "Cuenta 1900 0000 02" o "Celular *** *** 678"
+  static String _detalleDestino(Destinatario d) => d.porCelular
+      ? 'Celular ${d.telefono ?? ''}'
+      : 'Cuenta ${Formato.cuenta(d.numeroCuenta!)}';
 
   Future<void> _transferir() async {
     final op = context.read<OperacionesController>();
@@ -71,7 +90,7 @@ class _TransferenciaViewState extends State<TransferenciaView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Para: ${d.nombreTitular}'),
-            Text('Cuenta: ${Formato.cuenta(d.numeroCuenta)}'),
+            Text(_detalleDestino(d)),
             const Divider(),
             Text('Monto: ${Formato.soles(monto)}'),
             if (c != null) Text('Comisión: ${Formato.soles(c.comision)}'),
@@ -103,6 +122,7 @@ class _TransferenciaViewState extends State<TransferenciaView> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('${Formato.soles(r.monto)} a ${r.nombreDestinatario}'),
+            if (r.telefonoDestino != null) Text('Celular ${r.telefonoDestino}'),
             Text('Comisión: ${Formato.soles(r.comision)} (${r.estrategiaComision})'),
             Text('Saldo actual: ${Formato.soles(r.saldoActual)}'),
             Text(Formato.fechaHora(r.fecha)),
@@ -134,13 +154,30 @@ class _TransferenciaViewState extends State<TransferenciaView> {
             Text('Saldo disponible: ${Formato.soles(saldo)}'),
             const SizedBox(height: 16),
 
-            // ---------- Paso 1: cuenta destino
+            // ---------- Paso 1: destinatario (por celular o por número de cuenta)
+            SegmentedButton<ModoBusqueda>(
+              segments: const [
+                ButtonSegment(
+                    value: ModoBusqueda.celular,
+                    icon: Icon(Icons.phone_android),
+                    label: Text('Celular')),
+                ButtonSegment(
+                    value: ModoBusqueda.cuenta,
+                    icon: Icon(Icons.account_balance_wallet),
+                    label: Text('N.º de cuenta')),
+              ],
+              selected: {_modo},
+              onSelectionChanged: (s) => _cambiarModo(s.first),
+            ),
+            const SizedBox(height: 12),
             TextFormField(
+              key: ValueKey(_modo), // reinicia el campo al cambiar de modo
               controller: _cuenta,
-              keyboardType: TextInputType.number,
-              maxLength: 10,
+              keyboardType: _porCelular ? TextInputType.phone : TextInputType.number,
+              maxLength: _porCelular ? 15 : 10,
               decoration: InputDecoration(
-                labelText: 'Número de cuenta destino',
+                labelText: _porCelular ? 'Celular del destinatario' : 'Número de cuenta destino',
+                hintText: _porCelular ? '987 654 321' : null,
                 counterText: '',
                 suffixIcon: op.buscandoDestinatario
                     ? const Padding(
@@ -150,10 +187,11 @@ class _TransferenciaViewState extends State<TransferenciaView> {
                         icon: const Icon(Icons.search),
                         onPressed: _verificarCuenta),
               ),
-              validator: Validadores.cuenta,
+              validator: _validarDestino,
               onChanged: (v) {
                 if (op.destinatario != null) op.reiniciar();
-                if (v.length == 10) _verificarCuenta();
+                // Busca solo cuando el dato ya es válido (10 dígitos de cuenta / celular completo)
+                if (_validarDestino(v) == null) _verificarCuenta();
               },
             ),
             if (destino != null)
@@ -162,7 +200,7 @@ class _TransferenciaViewState extends State<TransferenciaView> {
                 child: ListTile(
                   leading: const Icon(Icons.verified_user, color: Colors.green),
                   title: Text(destino.nombreTitular),
-                  subtitle: Text('Cuenta ${Formato.cuenta(destino.numeroCuenta)}'),
+                  subtitle: Text(_detalleDestino(destino)),
                 ),
               ),
 

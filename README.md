@@ -11,9 +11,10 @@ Aplicación completa (backend + base de datos + app móvil) para demostrar en cl
 | Comunicación | API REST + JSON (errores en formato RFC 7807 *ProblemDetails*) |
 
 Funcionalidades: **registro de clientes** (con apertura automática de billetera),
-**inicio de sesión**, **recarga** y **retiro de saldo**, **transferencias** entre
-billeteras con comisión, **puntos de fidelidad** e **historial de transacciones**
-paginado y filtrable.
+**inicio de sesión**, **verificación del celular** con código por SMS (simulado),
+**recarga** y **retiro de saldo**, **transferencias** entre billeteras **por celular o
+por número de cuenta** con comisión, **puntos de fidelidad** e **historial de
+transacciones** paginado y filtrable.
 
 ---
 
@@ -42,22 +43,26 @@ flowchart LR
 ```
 backend/src
 ├── BilleteraDigital.Domain          ← núcleo: no depende de NADA
-│   ├── Entidades/   Cliente, Billetera, Transaccion, MovimientoPuntos  (entidades ricas)
+│   ├── Entidades/   Cliente, Billetera, Transaccion, MovimientoPuntos,
+│   │                VerificacionTelefono  (entidades ricas)
+│   ├── ValueObjects/ Telefono (celular validado y normalizado a +51…)
 │   ├── Enums/       TipoTransaccion
 │   ├── Excepciones/ ReglaDeNegocioException, SaldoInsuficienteException
 │   └── Interfaces/  IClienteRepository, IBilleteraRepository, ITransaccionRepository,
-│                    IPuntosFidelidadRepository, IUnitOfWork
+│                    IPuntosFidelidadRepository, IVerificacionTelefonoRepository, IUnitOfWork
 ├── BilleteraDigital.Application     ← casos de uso; depende solo de Domain
 │   ├── DTOs/        contratos de entrada/salida de la API
-│   ├── Servicios/   ClienteService, BilleteraService
+│   ├── Servicios/   ClienteService, BilleteraService, VerificacionTelefonoService
 │   ├── Idempotencia/ IIdempotenciaRepository, RegistroIdempotencia
 │   └── Patrones/    Strategy/, FactoryMethod/, Observer/
 ├── BilleteraDigital.Infrastructure  ← detalles técnicos; implementa las interfaces
 │   ├── Persistencia/ BilleteraDbContext (EF Core), UnidadDeTrabajo
 │   ├── Repositorios/ ClienteRepository, BilleteraRepository, TransaccionRepository,
 │   │                 PuntosFidelidadRepository, IdempotenciaRepository,
+│   │                 VerificacionTelefonoRepository,
 │   │                 BilleteraRepositoryConCache (Decorator)
 │   ├── Cache/        CacheBilleteras (claves, tiempos de vida e invalidación)
+│   ├── Mensajeria/   SmsSimuladoEnviador (consola + logs/sms_simulados.log)
 │   ├── Seguridad/    Pbkdf2PasswordHasher, JwtGeneradorToken
 │   ├── Mantenimiento/ LimpiezaIdempotenciaService (borra claves de más de 24 h)
 │   └── Observadores/ AuditoriaArchivo, NotificacionEmail, AlertaFraude, CacheBilleteras,
@@ -95,17 +100,23 @@ llama al Model y avisa con `notifyListeners()`, y la View se redibuja (`context.
 
 | Método | Ruta | Descripción | Códigos |
 |---|---|---|---|
-| POST | `/api/clientes` | Registrar cliente (+ billetera) | 201, 409, 422 |
+| POST | `/api/clientes` | Registrar cliente (+ billetera); envía el código por SMS | 201, 409, 422 |
+| POST | `/api/clientes/{id}/telefono/codigo` | Reenviar el código de verificación (1 cada 60 s) | 202, 403, 422 |
+| POST | `/api/clientes/{id}/telefono/verificar` | Verificar el celular con el código de 6 dígitos | 200, 403, 409, 422 |
 | POST | `/api/clientes/login` | Iniciar sesión | 200, 401 |
 | GET | `/api/clientes/{id}` | Cliente con billetera | 200, 403, 404 |
 | GET | `/api/clientes/{id}/puntos` | Puntos de fidelidad (total y últimos movimientos) | 200, 403, 404 |
 | GET | `/api/billeteras/{id}` | Saldo de la billetera | 200, 404 |
-| GET | `/api/billeteras/cuenta/{numero}` | Titular de una cuenta (antes de transferir) | 200, 404 |
+| GET | `/api/billeteras/cuenta/{numero}` | Titular de una cuenta (antes de transferir) ⏱ | 200, 404, 429 |
+| GET | `/api/billeteras/telefono/{celular}` | Titular de un celular **verificado** (no revela la cuenta) ⏱ | 200, 404, 429 |
 | GET | `/api/billeteras/{id}/transacciones?pagina=&tamano=&tipo=` | Historial paginado | 200, 404 |
 | POST | `/api/transacciones/recargas` | Recargar saldo ⚑ | 201, 400, 404, 409, 422 |
 | POST | `/api/transacciones/retiros` | Retirar saldo (máx. S/ 2,000) ⚑ | 201, 400, 404, 409, 422 |
 | POST | `/api/transacciones/transferencias` | Transferir dinero ⚑ | 201, 400, 404, 409, 422 |
 | GET | `/api/transacciones/comision?monto=` | Previsualizar comisión | 200, 422 |
+
+⏱ Máximo 10 búsquedas de destinatario por minuto y por usuario (429 al pasarse).
+Una transferencia indica el destino con **uno** de `numeroCuentaDestino` o `telefonoDestino`.
 
 ⚑ Exigen la cabecera **`Idempotency-Key`** (por ejemplo, un UUID). Ver la sección 2.7.
 En Swagger aparece como un campo más de la operación.
@@ -374,9 +385,36 @@ Alternativas a `FOR UPDATE` para discutir: concurrencia optimista (`xmin` de Pos
 como token de versión + reintentos), `UPDATE … SET saldo = saldo - @m WHERE saldo >= @m`
 atómico, o aislamiento `SERIALIZABLE` con reintentos ante el error `40001`.
 
+### 2.9 Transferencias por celular y verificación con código
+
+El celular sirve para **encontrar** al destinatario; el dinero se sigue moviendo entre
+billeteras igual que antes (bloqueo por Id, Strategy, Factory Method, Observer). La
+pantalla de transferencia ofrece **Celular** (por defecto) o **N.º de cuenta**.
+
+- **Value Object `Telefono` (DDD):** valida y normaliza a E.164. `987654321`,
+  `987 654 321` y `+51 987-654-321` son el mismo `+51987654321`. Es inmutable y se
+  compara por valor; admitir otros países sería un cambio solo en esta clase.
+- **Verificación (OTP):** al registrarse se envía un código de 6 dígitos por SMS
+  **simulado** (consola de la API y `logs/sms_simulados.log`). La entidad
+  `VerificacionTelefono` guarda solo el **hash**, vence a los 10 minutos, admite 5
+  intentos y permite reenviar cada 60 segundos. Solo los celulares **verificados**
+  se pueden encontrar.
+- **Único solo entre verificados:** `ux_clientes_telefono_verificado` es un índice
+  parcial. Si el celular fuera único para todos, cualquiera podría registrarse primero
+  con el número de otra persona y bloquearla; así, la verdadera dueña puede registrarse
+  y verificarlo, y quien lo "reservó" ya no puede.
+- **Privacidad:** la búsqueda por celular devuelve solo el nombre ("Luis T.") y el
+  celular enmascarado (`*** *** 678`), nunca el número de cuenta; "no existe" y "no
+  verificado" dan el mismo 404. Un **límite de 10 búsquedas por minuto** (rate limiting
+  de ASP.NET Core 8) impide recorrer números para averiguar quién está registrado.
+  El historial sigue mostrando la cuenta de la contraparte después de una transferencia.
+- **Clientes antiguos:** el script `05_telefono.sql` normaliza los teléfonos existentes;
+  los que no se pueden normalizar se conservan (restricción `NOT VALID`), pero esos
+  clientes no pueden verificar su celular hasta que exista la opción de cambiarlo.
+
 ### Patrones complementarios presentes (para mencionar)
 DTO, Inyección de Dependencias, Middleware (*Chain of Responsibility* del pipeline
-de ASP.NET), Entidades ricas (DDD).
+de ASP.NET), Entidades ricas y Value Objects (DDD).
 
 ---
 
@@ -392,18 +430,20 @@ docker compose up -d
 
 Sin Docker: crear usuario `billetera` / `billetera123` y la base `billetera_digital`,
 luego ejecutar en orden `database/01_esquema.sql`, `02_datos_prueba.sql`,
-`03_retiros_y_puntos.sql` y `04_idempotencia.sql`.
+`03_retiros_y_puntos.sql`, `04_idempotencia.sql` y `05_telefono.sql`.
 
 Si tu base **ya existía** (Docker solo ejecuta los scripts la primera vez), aplica a
-mano los scripts nuevos (ambos son idempotentes):
+mano los scripts nuevos (todos son idempotentes):
 
 ```bash
 docker exec -i billetera_postgres psql -U billetera -d billetera_digital < database/03_retiros_y_puntos.sql
 docker exec -i billetera_postgres psql -U billetera -d billetera_digital < database/04_idempotencia.sql
+docker exec -i billetera_postgres psql -U billetera -d billetera_digital < database/05_telefono.sql
 ```
 
 Datos de prueba: `ana@demo.pe` y `luis@demo.pe`, contraseña **`Clave123!`**
-(cuentas `1900000001` con S/ 1,500 y `1900000002` con S/ 800).
+(cuentas `1900000001` con S/ 1,500 y `1900000002` con S/ 800; celulares verificados
+`987 654 321` y `912 345 678`).
 
 ### 3.2 Backend
 
@@ -455,6 +495,9 @@ flutter test
 8. Idempotencia en Swagger: enviar `POST /api/transacciones/transferencias` dos veces
    con la misma `Idempotency-Key` → la segunda responde igual, con
    `Idempotent-Replayed: true`, y el saldo bajó **una sola vez**.
+9. Celular: como Ana, transferir a Luis escribiendo `912 345 678` (sin conocer su cuenta).
+   Luego registrar un usuario nuevo, leer el código en la consola de la API
+   (`[SMS SIMULADO → +51…]`), verificarlo en la app y recibir una transferencia por celular.
 
 ---
 

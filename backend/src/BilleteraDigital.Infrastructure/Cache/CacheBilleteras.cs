@@ -13,6 +13,8 @@ namespace BilleteraDigital.Infrastructure.Cache;
 ///   billetera:id:{id}            → la Billetera completa (incluye Saldo: CAMBIA)
 ///   billetera:cuenta:{numero}    → solo el Id (dato inmutable)
 ///   billetera:cliente:{id}       → solo el Id (dato inmutable)
+///   billetera:telefono:{+51…}    → solo el Id (hoy el celular no se puede cambiar; si
+///                                  algún día se puede, ese cambio debe invalidar este índice)
 /// Como los índices por cuenta y por cliente apuntan al Id, para invalidar
 /// una billetera basta con borrar UNA sola entrada: la que guarda el saldo.
 /// </summary>
@@ -31,6 +33,7 @@ public class CacheBilleteras
     private static string ClavePorId(Guid id) => $"billetera:id:{id}";
     private static string ClavePorCuenta(string numeroCuenta) => $"billetera:cuenta:{numeroCuenta}";
     private static string ClavePorCliente(Guid clienteId) => $"billetera:cliente:{clienteId}";
+    private static string ClavePorTelefono(string telefono) => $"billetera:telefono:{telefono}";
 
     public bool TryObtener(Guid id, out Billetera? billetera) =>
         _cache.TryGetValue(ClavePorId(id), out billetera);
@@ -40,6 +43,13 @@ public class CacheBilleteras
 
     public bool TryObtenerIdPorCliente(Guid clienteId, out Guid id) =>
         _cache.TryGetValue(ClavePorCliente(clienteId), out id);
+
+    public bool TryObtenerIdPorTelefono(string telefono, out Guid id) =>
+        _cache.TryGetValue(ClavePorTelefono(telefono), out id);
+
+    /// <summary>Solo se llama con celulares VERIFICADOS (no se guarda en caché un "no existe").</summary>
+    public void GuardarIndiceTelefono(string telefono, Guid billeteraId) =>
+        _cache.Set(ClavePorTelefono(telefono), billeteraId, DuracionIndice);
 
     /// <summary>Guarda la billetera y sus índices por número de cuenta y por cliente.</summary>
     public void Guardar(Billetera billetera)

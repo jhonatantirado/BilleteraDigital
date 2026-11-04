@@ -6,6 +6,7 @@ import '../core/api_exception.dart';
 import '../core/clave_idempotencia.dart';
 import '../models/operaciones.dart';
 import '../services/billetera_service.dart';
+import '../utils/validadores.dart';
 import 'sesion_controller.dart';
 
 /// Controlador de las operaciones que mueven dinero: recarga y transferencia.
@@ -25,6 +26,9 @@ class OperacionesController extends ChangeNotifier {
 
   Timer? _debounce;
 
+  /// Celular (9 dígitos) con el que se encontró al destinatario, si se buscó por celular.
+  String? _celularDestino;
+
   // Una clave de idempotencia por tipo de operación (ver ClaveIdempotencia)
   final _claveRecarga = ClaveIdempotencia();
   final _claveRetiro = ClaveIdempotencia();
@@ -33,16 +37,31 @@ class OperacionesController extends ChangeNotifier {
   String get _billeteraId => _sesion.cliente!.billetera.id;
 
   // -------------------------------------------------------- Transferencia
-  Future<void> buscarDestinatario(String numeroCuenta) async {
+  /// Busca al destinatario por número de cuenta o por celular.
+  Future<void> buscarDestinatario(String valor,
+      {ModoBusqueda modo = ModoBusqueda.cuenta}) async {
     buscandoDestinatario = true;
     destinatario = null;
+    _celularDestino = null;
     error = null;
     notifyListeners();
     try {
-      if (numeroCuenta == _sesion.cliente?.billetera.numeroCuenta) {
-        throw const ApiException(422, 'Esa es tu propia cuenta.');
+      if (modo == ModoBusqueda.cuenta) {
+        if (valor == _sesion.cliente?.billetera.numeroCuenta) {
+          throw const ApiException(422, 'Esa es tu propia cuenta.');
+        }
+        destinatario = await _servicio.buscarDestinatario(valor);
+      } else {
+        final celular = Validadores.normalizarCelular(valor);
+        if (celular == null) {
+          throw const ApiException(422, 'Ingresa un celular de 9 dígitos que empiece con 9.');
+        }
+        if (celular == Validadores.normalizarCelular(_sesion.cliente?.telefono ?? '')) {
+          throw const ApiException(422, 'Ese es tu propio celular.');
+        }
+        destinatario = await _servicio.buscarDestinatarioPorCelular(celular);
+        _celularDestino = celular;
       }
-      destinatario = await _servicio.buscarDestinatario(numeroCuenta);
     } on ApiException catch (e) {
       error = e.mensaje;
     } finally {
@@ -78,12 +97,14 @@ class OperacionesController extends ChangeNotifier {
     final destino = destinatario;
     if (destino == null) return null;
     final desc = (descripcion?.trim().isEmpty ?? true) ? null : descripcion!.trim();
-    final clave = _claveTransferencia
-        .para('${destino.numeroCuenta}|${monto.toStringAsFixed(2)}|${desc ?? ''}');
+    final celular = destino.porCelular ? _celularDestino : null;
+    final clave = _claveTransferencia.para(
+        '${destino.numeroCuenta ?? 'cel:$celular'}|${monto.toStringAsFixed(2)}|${desc ?? ''}');
     return _procesar(() async {
       final r = await _servicio.transferir(
         billeteraOrigenId: _billeteraId,
         numeroCuentaDestino: destino.numeroCuenta,
+        telefonoDestino: celular,
         monto: monto,
         descripcion: desc,
         idempotencyKey: clave,
@@ -124,6 +145,7 @@ class OperacionesController extends ChangeNotifier {
     _claveRetiro.descartar();
     _claveTransferencia.descartar();
     destinatario = null;
+    _celularDestino = null;
     comision = null;
     error = null;
     procesando = false;

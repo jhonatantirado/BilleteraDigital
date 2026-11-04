@@ -19,7 +19,7 @@ namespace BilleteraDigital.Infrastructure.Repositorios;
 /// está en el registro de dependencias (DependencyInjection.cs).
 ///
 /// Qué se cachea y qué NO:
-///   ✔ ObtenerPorId / PorNumeroCuenta / PorClienteId (lecturas frecuentes)
+///   ✔ ObtenerPorId / PorNumeroCuenta / PorClienteId / PorTelefono (lecturas frecuentes)
 ///   ✘ ObtenerPorIdParaActualizar → debe ir SIEMPRE a la BD para tomar el
 ///     bloqueo FOR UPDATE y leer el saldo real (protege las transferencias).
 ///   ✘ ExisteNumeroCuenta → cachear un "no existe" podría duplicar cuentas.
@@ -67,6 +67,16 @@ public class BilleteraRepositoryConCache : IBilleteraRepository
             return await ObtenerPorIdAsync(id);
 
         return Guardar(await _interno.ObtenerPorClienteIdAsync(clienteId));
+    }
+
+    public async Task<Billetera?> ObtenerPorTelefonoAsync(string telefono)
+    {
+        if (_cache.TryObtenerIdPorTelefono(telefono, out var id))
+            return await ObtenerPorIdAsync(id);
+
+        var billetera = Guardar(await _interno.ObtenerPorTelefonoAsync(telefono));
+        if (billetera is not null) _cache.GuardarIndiceTelefono(telefono, billetera.Id);
+        return billetera;
     }
 
     // ------------------------------------------- sin caché: solo delegan

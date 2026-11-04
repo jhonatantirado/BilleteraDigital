@@ -17,6 +17,7 @@ public static class RegistroAplicacion
         // Servicios de caso de uso (uno por petición)
         services.AddScoped<IClienteService, ClienteService>();
         services.AddScoped<IBilleteraService, BilleteraService>();
+        services.AddScoped<IVerificacionTelefonoService, VerificacionTelefonoService>();
 
         // Reloj del sistema (abstracción de .NET 8): en las pruebas se reemplaza por una fecha fija
         services.AddSingleton(TimeProvider.System);

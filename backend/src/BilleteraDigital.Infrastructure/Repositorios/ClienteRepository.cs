@@ -21,5 +21,12 @@ public class ClienteRepository : IClienteRepository
 
     public Task<bool> ExisteEmailAsync(string email) => _ctx.Clientes.AnyAsync(c => c.Email == email);
 
+    public Task<bool> ExisteTelefonoVerificadoAsync(string telefono, Guid? exceptoClienteId = null) =>
+        _ctx.Clientes.AnyAsync(c => c.Telefono == telefono && c.TelefonoVerificado
+                                    && (exceptoClienteId == null || c.Id != exceptoClienteId));
+
+    public Task<Cliente?> ObtenerPorIdParaActualizarAsync(Guid id) =>
+        _ctx.Clientes.FirstOrDefaultAsync(c => c.Id == id);   // con tracking
+
     public async Task AgregarAsync(Cliente cliente) => await _ctx.Clientes.AddAsync(cliente);
 }

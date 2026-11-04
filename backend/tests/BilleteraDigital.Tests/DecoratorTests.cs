@@ -27,6 +27,8 @@ public class DecoratorTests
         public Task<Billetera?> ObtenerPorIdAsync(Guid id) { Lecturas++; return Task.FromResult(Datos.FirstOrDefault(b => b.Id == id)); }
         public Task<Billetera?> ObtenerPorClienteIdAsync(Guid c) { Lecturas++; return Task.FromResult(Datos.FirstOrDefault(b => b.ClienteId == c)); }
         public Task<Billetera?> ObtenerPorNumeroCuentaAsync(string n) { Lecturas++; return Task.FromResult(Datos.FirstOrDefault(b => b.NumeroCuenta == n)); }
+        public Dictionary<string, Guid> Celulares { get; } = new();
+        public Task<Billetera?> ObtenerPorTelefonoAsync(string t) { Lecturas++; return Task.FromResult(Celulares.TryGetValue(t, out var id) ? Datos.FirstOrDefault(b => b.Id == id) : null); }
         public Task<Billetera?> ObtenerPorIdParaActualizarAsync(Guid id) { LecturasConBloqueo++; return Task.FromResult(Datos.FirstOrDefault(b => b.Id == id)); }
         public Task<bool> ExisteNumeroCuentaAsync(string n) => Task.FromResult(Datos.Any(b => b.NumeroCuenta == n));
         public Task AgregarAsync(Billetera b) { Datos.Add(b); return Task.CompletedTask; }
@@ -61,6 +63,19 @@ public class DecoratorTests
         await _decorado.ObtenerPorClienteIdAsync(_billetera.ClienteId);
 
         Assert.Equal(1, _real.Lecturas);
+    }
+
+    [Fact]
+    public async Task Buscar_por_celular_tambien_sale_de_la_cache()
+    {
+        _real.Celulares["+51987654321"] = _billetera.Id;
+
+        await _decorado.ObtenerPorTelefonoAsync("+51987654321");
+        var segunda = await _decorado.ObtenerPorTelefonoAsync("+51987654321");
+
+        Assert.Equal(1, _real.Lecturas);
+        Assert.Equal(_billetera.Id, segunda!.Id);
+        Assert.Null(await _decorado.ObtenerPorTelefonoAsync("+51900000000")); // un "no existe" no se cachea
     }
 
     [Fact]

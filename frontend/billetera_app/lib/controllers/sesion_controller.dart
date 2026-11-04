@@ -61,6 +61,21 @@ class SesionController extends ChangeNotifier {
     return ok;
   }
 
+  /// Verifica el celular con el código recibido por SMS.
+  Future<bool> verificarTelefono(String codigo) {
+    final actual = _cliente;
+    if (actual == null) return Future.value(false);
+    return _ejecutar(() async =>
+        _cliente = await _clientes.verificarTelefono(actual.id, codigo.trim()));
+  }
+
+  /// Pide un código nuevo (la API exige 60 s entre envíos).
+  Future<bool> reenviarCodigoTelefono() {
+    final actual = _cliente;
+    if (actual == null) return Future.value(false);
+    return _ejecutar(() => _clientes.enviarCodigoTelefono(actual.id));
+  }
+
   /// Consulta los puntos de fidelidad (los otorga el backend con un Observer).
   /// Si falla, no se muestra error: los puntos son información secundaria.
   Future<void> refrescarPuntos() async {

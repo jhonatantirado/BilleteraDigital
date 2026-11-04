@@ -4,6 +4,7 @@ using BilleteraDigital.Application.Excepciones;
 using BilleteraDigital.Application.Interfaces;
 using BilleteraDigital.Domain.Entidades;
 using BilleteraDigital.Domain.Interfaces;
+using BilleteraDigital.Domain.ValueObjects;
 
 namespace BilleteraDigital.Application.Servicios;
 
@@ -20,11 +21,13 @@ public class ClienteService : IClienteService
     private readonly IPasswordHasher _hasher;
     private readonly IGeneradorToken _tokens;
     private readonly IPuntosFidelidadRepository _puntos;
+    private readonly IVerificacionTelefonoService _verificacion;
 
     public ClienteService(IClienteRepository clientes, IBilleteraRepository billeteras,
                           IUnitOfWork unidadDeTrabajo, IPasswordHasher hasher, IGeneradorToken tokens,
-                          IPuntosFidelidadRepository puntos)
+                          IPuntosFidelidadRepository puntos, IVerificacionTelefonoService verificacion)
     {
+        _verificacion = verificacion;
         _puntos = puntos;
         _tokens = tokens;
         _clientes = clientes;
@@ -44,8 +47,15 @@ public class ClienteService : IClienteService
         if (await _clientes.ExisteEmailAsync(email))
             throw new ConflictoException("Ya existe un cliente registrado con ese email.");
 
+        // VALUE OBJECT: celular obligatorio y normalizado (+51 9XXXXXXXX).
+        // Solo choca con celulares YA VERIFICADOS: si se exigiera unicidad a los no
+        // verificados, cualquiera podría "secuestrar" el número de otra persona.
+        var telefono = Telefono.Crear(r.Telefono);
+        if (await _clientes.ExisteTelefonoVerificadoAsync(telefono.Valor))
+            throw new ConflictoException("Ese celular ya está registrado y verificado por otro cliente.");
+
         // 1) Entidad Cliente (el dominio valida sus propias reglas)
-        var cliente = Cliente.Crear(r.Nombres, r.Apellidos, r.Dni, email, r.Telefono,
+        var cliente = Cliente.Crear(r.Nombres, r.Apellidos, r.Dni, email, telefono.Valor,
                                     _hasher.Hash(r.Password));
 
         // 2) Toda persona registrada recibe automáticamente una billetera en soles
@@ -65,6 +75,10 @@ public class ClienteService : IClienteService
             await _unidadDeTrabajo.RevertirAsync();
             throw;
         }
+
+        // 4) Se envía el código por SMS (simulado). El cliente ya puede usar la app,
+        //    pero no podrá recibir transferencias POR CELULAR hasta verificarlo.
+        await _verificacion.EnviarCodigoAsync(cliente.Id);
 
         return ConToken(Mapeador.AClienteResponse(cliente, billetera));
     }

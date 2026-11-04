@@ -8,6 +8,9 @@ public interface IBilleteraRepository
     Task<Billetera?> ObtenerPorClienteIdAsync(Guid clienteId);
     Task<Billetera?> ObtenerPorNumeroCuentaAsync(string numeroCuenta);
 
+    /// <summary>Billetera cuyo titular tiene este celular VERIFICADO (formato E.164).</summary>
+    Task<Billetera?> ObtenerPorTelefonoAsync(string telefono);
+
     /// <summary>
     /// Obtiene la billetera bloqueando su fila (SELECT ... FOR UPDATE)
     /// hasta que termine la transacción. Evita que dos transferencias

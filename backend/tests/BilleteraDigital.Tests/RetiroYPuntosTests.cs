@@ -79,6 +79,7 @@ public class PuntosFidelidadTests
         public Task<Billetera?> ObtenerPorIdAsync(Guid id) => Task.FromResult(Datos.FirstOrDefault(b => b.Id == id));
         public Task<Billetera?> ObtenerPorClienteIdAsync(Guid c) => Task.FromResult(Datos.FirstOrDefault(b => b.ClienteId == c));
         public Task<Billetera?> ObtenerPorNumeroCuentaAsync(string n) => Task.FromResult(Datos.FirstOrDefault(b => b.NumeroCuenta == n));
+        public Task<Billetera?> ObtenerPorTelefonoAsync(string t) => Task.FromResult<Billetera?>(null);
         public Task<Billetera?> ObtenerPorIdParaActualizarAsync(Guid id) => ObtenerPorIdAsync(id);
         public Task<bool> ExisteNumeroCuentaAsync(string n) => Task.FromResult(Datos.Any(b => b.NumeroCuenta == n));
         public Task AgregarAsync(Billetera b) { Datos.Add(b); return Task.CompletedTask; }
